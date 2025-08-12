@@ -4,6 +4,7 @@ import { useGCBalance } from "../../contexts/GCBalanceContext";
 import { LightButton, GoldButton } from "../../components/Button";
 import { ChatSidebar } from "../../components/ChatSidebar";
 import { GamemodeAccessCheck } from "../../components/GamemodeAccessCheck";
+import Particles from "../../components/Particles";
 import { Link } from "react-router";
 import { useState, useEffect } from "react";
 import { websocketService } from "../../lib/websocket";
@@ -190,8 +191,24 @@ export default function Slots() {
 
   return (
     <GamemodeAccessCheck gamemode="slots">
-      <div className="min-h-screen bg-black">
-        <div className="container mx-auto px-4 py-8 pt-16 sm:pt-20 md:pt-24">
+      <div className="min-h-screen bg-black relative">
+        {/* Particles Background */}
+        <div className="absolute inset-0 z-0">
+          <Particles
+            particleColors={['#C89E00', '#C89E00']}
+            particleCount={200}
+            particleSpread={10}
+            speed={0.1}
+            particleBaseSize={100}
+            moveParticlesOnHover={true}
+            alphaParticles={false}
+            disableRotation={false}
+          />
+        </div>
+        
+        {/* Content Layer */}
+        <div className="relative z-10">
+          <div className="container mx-auto px-4 py-8 pt-16 sm:pt-20 md:pt-24">
         <div className="mb-8 mt-8 sm:mt-3 md:mt-4">
           <GameLiveView />
         </div>
@@ -337,7 +354,7 @@ export default function Slots() {
         {/* Live Chat */}
         <ChatSidebar gamemode="slots" />
       </div>
-    </div>
+      </div>
     </GamemodeAccessCheck>
   );
 } 
