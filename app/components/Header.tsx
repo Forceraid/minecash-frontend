@@ -50,9 +50,9 @@ export function Header() {
 
   return (
     <header className="bg-black/30 backdrop-blur-sm fixed top-0 left-0 right-0 z-[999]">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-4 pb-6">
         <div className="flex items-center justify-between">
-          <Link to="/" className="text-yellow-400 text-2xl font-bold hover:text-yellow-300 transition-colors">
+          <Link to="/" className="text-yellow-400 text-2xl font-bold hover:text-yellow-300 transition-colors mb-2.5">
             MINECASH
           </Link>
           
