@@ -351,16 +351,13 @@ export default function HiLo() {
                   // In betting phase, clear result card and update current card
                   newState.currentCard = state.currentCard;
                   newState.resultCard = null;
-                  // Reset bet state when new betting phase starts but preserve streak and multiplier
-                  if (prevState.phase !== 'betting') {
+                  // Only reset bet state if we don't have fresh playerData from server
+                  if (prevState.phase !== 'betting' && !state.playerData) {
                     newState.playerData = {
                       ...newState.playerData,
                       betAmount: null,
                       status: 'waiting',
-                      choice: null,
-                      // Preserve streak and multiplier from previous state
-                      streak: newState.playerData?.streak || prevState.playerData?.streak || 0,
-                      multiplier: newState.playerData?.multiplier || prevState.playerData?.multiplier || 1.07
+                      choice: null
                     };
                   }
                 } else if (state.phase === 'reveal' && state.resultCard) {
@@ -371,16 +368,15 @@ export default function HiLo() {
                   // In next_round phase, keep both cards visible
                   newState.currentCard = state.currentCard || prevState.currentCard;
                   newState.resultCard = state.resultCard || prevState.resultCard;
-                  // Reset bet state for next round but preserve streak and multiplier
-                  newState.playerData = {
-                    ...newState.playerData,
-                    betAmount: null,
-                    status: 'waiting',
-                    choice: null,
-                    // Preserve streak and multiplier from previous state
-                    streak: newState.playerData?.streak || prevState.playerData?.streak || 0,
-                    multiplier: newState.playerData?.multiplier || prevState.playerData?.multiplier || 1.07
-                  };
+                  // Only reset bet state if we don't have fresh playerData from server
+                  if (!state.playerData) {
+                    newState.playerData = {
+                      ...newState.playerData,
+                      betAmount: null,
+                      status: 'waiting',
+                      choice: null
+                    };
+                  }
                 }
 
                 return newState;
