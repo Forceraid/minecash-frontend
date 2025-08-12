@@ -19,7 +19,7 @@ export function meta({}: Route.MetaArgs) {
 // GameLiveView component placeholder for the main game interface
 function GameLiveView() {
   return (
-    <div className="w-full h-[500px] bg-[#F5F5F5] rounded-lg border-2 border-yellow-400 flex items-center justify-center">
+            <div className="w-full h-[500px] bg-[#F5F5F5] rounded-lg flex items-center justify-center">
       <div className="text-center text-black">
         <div className="text-6xl mb-4">♠️</div>
         <h3 className="text-2xl font-bold mb-2">Blackjack table</h3>

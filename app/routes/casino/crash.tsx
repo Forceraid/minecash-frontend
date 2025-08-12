@@ -62,7 +62,7 @@ function GameLiveView({ gameState, crashState, isConnected, lastRounds, interpol
   };
 
   return (
-    <div className="w-full h-[500px] bg-[#F5F5F5] rounded-lg border-2 border-yellow-400 relative overflow-hidden">
+    <div className="w-full h-[500px] bg-[#F5F5F5] rounded-lg relative overflow-hidden">
       {/* 3D Rocket Scene */}
       <div className="absolute inset-0 z-0">
         <CrashRocketScene 
