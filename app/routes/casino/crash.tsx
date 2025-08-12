@@ -1380,6 +1380,6 @@ export default function Crash() {
             <ChatSidebar gamemode="crash" />
           </div>
         </div>
-      </GamemodeAccessCheck>
-    );
-  }
+      </div>
+    </GamemodeAccessCheck>
+  );
