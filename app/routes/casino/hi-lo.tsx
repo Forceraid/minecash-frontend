@@ -854,22 +854,19 @@ export default function HiLo() {
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>1-2 wins:</span>
-                          <span className="text-yellow-400">1.07x (base)</span>
+                          <span className="text-yellow-400">1.07x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>3-5 wins:</span>
-                          <span className="text-yellow-400">1.28x (base)</span>
+                          <span className="text-yellow-400">1.28x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>6-9 wins:</span>
-                          <span className="text-yellow-400">1.48x (base)</span>
+                          <span className="text-yellow-400">1.48x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>10+ wins:</span>
-                          <span className="text-yellow-400">2.00x (base)</span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-2 text-center">
-                          *7% house edge applied to actual payouts
+                          <span className="text-yellow-400">2.00x</span>
                         </div>
                       </div>
                     </div>
