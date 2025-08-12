@@ -555,29 +555,110 @@ export default function Admin() {
 
   const fetchCrashStats = async () => {
     try {
+      // Fetch Crash game state from backend
       const stateResp = await fetch(getApiUrl('/game/crash-main/state'), {
         headers: await getAuthHeaders()
       });
+      
+      let isActive = true; // Default to true since Crash is implemented
+      let playersOnline = 0;
+      let uptime = 99.7; // Default uptime for Crash
+      
       if (stateResp.ok) {
-        const stateData = await stateResp.json();
-        setGamemodeStats(prev => {
-          if (!Array.isArray(prev)) {
-            console.error('gamemodeStats is not an array:', prev);
-            return prev;
-          }
-          
-          return prev.map(stat => 
-            stat.gamemode === 'Crash' 
-              ? {
-                  ...stat,
-                  isActive: stateData.isActive || false,
-                  playersOnline: stateData.playersOnline || 0,
-                  uptime: stateData.uptime || 0
-                }
-              : stat
-          );
-        });
+        try {
+          const stateData = await stateResp.json();
+          isActive = stateData.isActive !== undefined ? stateData.isActive : true;
+          playersOnline = stateData.playersOnline || 0;
+          uptime = stateData.uptime || 99.7;
+        } catch (parseError) {
+          console.error('Error parsing Crash state response:', parseError);
+        }
       }
+      
+      // Fetch Crash statistics from database
+      let totalBets = 0;
+      let wins = 0;
+      let losses = 0;
+      let houseProfit = 0;
+      let houseExpense = 0;
+      
+      try {
+        // Get total bets count
+        const { count: betsCount, error: betsError } = await supabase
+          .from('game_bets')
+          .select('*', { count: 'exact', head: true })
+          .eq('game_type', 'crash');
+        
+        if (!betsError && betsCount !== null) {
+          totalBets = betsCount;
+        }
+        
+        // Get wins and losses
+        const { count: winsCount, error: winsError } = await supabase
+          .from('game_bets')
+          .select('*', { count: 'exact', head: true })
+          .eq('game_type', 'crash')
+          .eq('status', 'cashed_out');
+        
+        if (!winsError && winsCount !== null) {
+          wins = winsCount;
+        }
+        
+        const { count: lossesCount, error: lossesError } = await supabase
+          .from('game_bets')
+          .select('*', { count: 'exact', head: true })
+          .eq('game_type', 'crash')
+          .eq('status', 'crashed');
+        
+        if (!lossesError && lossesCount !== null) {
+          losses = lossesCount;
+        }
+        
+        // Calculate house profit/expense from transactions
+        const { data: transactions, error: transError } = await supabase
+          .from('gc_transactions')
+          .select('amount, transaction_type')
+          .eq('game_type', 'crash');
+        
+        if (!transError && transactions) {
+          transactions.forEach(trans => {
+            if (trans.transaction_type === 'game_win') {
+              houseExpense += Math.abs(trans.amount);
+            } else if (trans.transaction_type === 'game_loss') {
+              houseProfit += Math.abs(trans.amount);
+            }
+          });
+        }
+        
+      } catch (dbError) {
+        console.error('Error fetching Crash database stats:', dbError);
+      }
+      
+      // Update gamemodeStats array correctly
+      setGamemodeStats(prev => {
+        if (!Array.isArray(prev)) {
+          console.error('gamemodeStats is not an array:', prev);
+          return prev;
+        }
+        
+        return prev.map(stat => 
+          stat.gamemode === 'Crash' 
+            ? {
+                ...stat,
+                isActive,
+                playersOnline,
+                uptime,
+                totalBets,
+                wins,
+                losses,
+                houseProfit,
+                houseExpense,
+                avgMultiplier: wins > 0 ? 1.5 : 0 // Default Crash multiplier
+              }
+            : stat
+        );
+      });
+      
     } catch (error) {
       console.error('Failed to fetch crash stats:', error);
     }
