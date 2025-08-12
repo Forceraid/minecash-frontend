@@ -895,18 +895,6 @@ export default function Crash() {
           }
           break;
           
-        case 'bet_confirmed':
-          if (message.success) {
-            addNotification('Bet placed successfully!', 'success');
-            setCurrentBetAmount(message.betAmount || bet);
-            setBetProcessed(false);
-            // Refresh balance after bet confirmation with small delay
-            setTimeout(() => refreshBalance(), 100);
-          } else {
-            addNotification(message.error || 'Failed to place bet', 'error');
-          }
-          break;
-          
         case 'cashout_confirmed':
           if (message.success) {
             addNotification(`Cashout successful! Multiplier: ${message.multiplier}x`, 'success');
@@ -1054,7 +1042,7 @@ export default function Crash() {
       }, 100);
     } catch (error) {
       console.error('Error placing bet:', error);
-      addNotification('Failed to place DDt', 'error');
+      addNotification('Failed to place bet', 'error');
     }
   };
 
@@ -1098,7 +1086,7 @@ export default function Crash() {
     }
 
     if (crashState.phase !== 'crashing') {
-      addNotification('Can only set auto-cashout during crashing phase', 'error');
+      addNotification('Auto-cashout can only be set during crashing phase', 'error');
       return;
     }
 
