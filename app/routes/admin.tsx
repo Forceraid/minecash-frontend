@@ -2098,7 +2098,7 @@ export default function Admin() {
         {/* Disable Access Modal */}
         {showDisableModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto scrollbar-hide">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-white">Disable gamemode access</h3>
                 <button
@@ -2190,7 +2190,7 @@ export default function Admin() {
         {/* User Stats Modal */}
         {showStatsModal && selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto scrollbar-hide">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-white">
                   Stats for {selectedUser.displayName || selectedUser.username || 'Unknown User'}
@@ -2215,7 +2215,7 @@ export default function Admin() {
                 <div className="space-y-4">
                   {/* Overall Stats */}
                   <div className="bg-gray-800 rounded-lg p-4">
-                    <h4 className="text-lg font-bold text-white mb-3 text-center">Overall Statistics</h4>
+                    <h4 className="text-lg font-bold text-white mb-3 text-center">Overall statistics</h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-gray-700 rounded p-3 text-center">
                         <div className="text-2xl font-bold text-yellow-400">{userStats.games_played}</div>
@@ -2260,19 +2260,19 @@ export default function Admin() {
                   {/* Per-Gamemode Stats */}
                   {userStats.game_stats && (
                     <div className="space-y-3">
-                      <h4 className="text-lg font-bold text-white text-center">Gamemode Statistics</h4>
+                      <h4 className="text-lg font-bold text-white text-center">Gamemode statistics</h4>
                       
                       {Object.entries(userStats.game_stats).map(([gamemode, stats]) => {
                         if (stats.games_played === 0) return null; // Skip gamemodes with no games
                         
                         const isExpanded = expandedGamemodes.has(gamemode);
                         const gamemodeIcon = {
-                          'crash': '🚀',
-                          'blackjack': '🃏',
-                          'roulette': '🎰',
-                          'slots': '🎰',
-                          'hi-lo': '📊'
-                        }[gamemode] || '🎮';
+                          'crash': '',
+                          'blackjack': '',
+                          'roulette': '',
+                          'slots': '',
+                          'hi-lo': ''
+                        }[gamemode] || '';
                         
                         return (
                           <div key={gamemode} className="bg-gray-800 rounded-lg border border-gray-700">
@@ -2435,7 +2435,7 @@ export default function Admin() {
         {/* GC Limits Modal */}
         {showGCLimitsModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto scrollbar-hide">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-white">Gc limits management</h3>
                 <button
