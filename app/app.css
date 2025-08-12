@@ -15,6 +15,23 @@ body {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Fix for fixed header - prevent background from extending behind header */
+body {
+  padding-top: 4rem; /* 64px - matches header height */
+}
+
+@media (min-width: 640px) {
+  body {
+    padding-top: 5rem; /* 80px - for sm breakpoint */
+  }
+}
+
+@media (min-width: 768px) {
+  body {
+    padding-top: 6rem; /* 96px - for md breakpoint */
+  }
+}
+
 /* Hide main page scrollbar */
 html {
   scrollbar-width: none; /* Firefox */
