@@ -787,8 +787,6 @@ export default function Crash() {
     if (!isConnected) return;
 
     const handleMessage = (message: any) => {
-      console.log('Game message received:', message);
-      
       switch (message.type) {
         case 'game_state_update':
           if (message.phase) {

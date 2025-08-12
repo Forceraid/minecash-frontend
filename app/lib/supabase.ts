@@ -119,8 +119,6 @@ export const gcBalanceHelpers = {
 
   // Subscribe to real-time balance updates
   subscribeToBalance(userId: number, callback: (balance: number) => void) {
-    console.log('Setting up balance subscription for user:', userId);
-    
     const channel = supabase
       .channel(`gc_balance_${userId}`)
       .on(
