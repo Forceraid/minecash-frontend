@@ -354,7 +354,6 @@ export default function Slots() {
         {/* Live Chat */}
         <ChatSidebar gamemode="slots" />
       </div>
-      </div>
     </GamemodeAccessCheck>
   );
 } 
