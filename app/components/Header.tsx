@@ -35,7 +35,7 @@ export function Header() {
 
   if (loading) {
     return (
-      <header className="bg-black/20 backdrop-blur-sm fixed top-0 left-0 right-0 z-[200]">
+      <header className="bg-black/20 backdrop-blur-sm fixed top-0 left-0 right-0 z-[999]">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="text-white text-xl font-bold">
@@ -49,7 +49,7 @@ export function Header() {
   }
 
   return (
-    <header className="bg-black/30 backdrop-blur-sm fixed top-0 left-0 right-0 z-[200]">
+    <header className="bg-black/30 backdrop-blur-sm fixed top-0 left-0 right-0 z-[999]">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="text-yellow-400 text-2xl font-bold hover:text-yellow-300 transition-colors">
