@@ -49,7 +49,7 @@ export function Header() {
   }
 
   return (
-    <header className="bg-black/30 backdrop-blur-sm fixed top-0 left-0 right-0 z-[999]">
+    <header className="bg-black/90 backdrop-blur-sm border-b border-gray-800/50 fixed top-0 left-0 right-0 z-[999]">
       <div className="container mx-auto px-4 py-4 pb-8">
         <div className="flex items-center justify-between">
           <div className="pb-2">

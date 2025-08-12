@@ -38,7 +38,33 @@ export function Layout({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* Removed <Meta /> to avoid framework context error during hydration */}
+        
+        {/* Essential Meta Tags for Link Previews */}
+        <title>MINECASH - Your Ultimate GC Casino Experience</title>
+        <meta name="description" content="Experience the best GC casino with Blackjack, Roulette, Crash, Slots, and Hi-Lo. Fair gaming, fast payouts, and 24/7 entertainment!" />
+        <meta name="keywords" content="minecraft casino, gc casino, blackjack, roulette, crash, slots, hi-lo, gaming" />
+        <meta name="author" content="MINECASH" />
+        
+        {/* Open Graph Meta Tags (Facebook, Discord, etc.) */}
+        <meta property="og:title" content="MINECASH - Your Ultimate GC Casino Experience" />
+        <meta property="og:description" content="Experience the best GC casino with Blackjack, Roulette, Crash, Slots, and Hi-Lo. Fair gaming, fast payouts, and 24/7 entertainment!" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://minecash.com" />
+        <meta property="og:image" content="/images/mainlogo.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:site_name" content="MINECASH" />
+        
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="MINECASH - Your Ultimate GC Casino Experience" />
+        <meta name="twitter:description" content="Experience the best GC casino with Blackjack, Roulette, Crash, Slots, and Hi-Lo. Fair gaming, fast payouts, and 24/7 entertainment!" />
+        <meta name="twitter:image" content="/images/mainlogo.png" />
+        
+        {/* Additional Meta Tags */}
+        <meta name="robots" content="index, follow" />
+        <meta name="theme-color" content="#C89E00" />
+        
         <Links />
       </head>
       <body>
