@@ -530,9 +530,9 @@ export default function Crash() {
                 soundSystem.play('cashout_success');
               }
               if (message.cashoutAmount) {
-                // updateLocalBalance(message.cashoutAmount); // This line is no longer needed
+                // Balance already updated immediately in handleCashout
               }
-              refreshBalance();
+              // Balance already refreshed immediately in handleCashout
               setCurrentBetAmount(0);
               setBetProcessed(true);
               break;
@@ -560,12 +560,8 @@ export default function Crash() {
               if (message.userData) {
                 if (userProfile && String(message.userData.id) === String(userProfile.id)) {
                   // Only handle state updates, no notifications
-                  // if (typeof message.newBalance === 'number') { // This line is no longer needed
-                  //   setLocalBalance(message.newBalance);
-                  // } else if (message.cashoutAmount) {
-                  //   updateLocalBalance(parseFloat(message.cashoutAmount));
-                  // }
-                  refreshBalance();
+                  // Balance already updated immediately in handleAutoCashout
+                  // Balance already refreshed immediately in handleAutoCashout
                   setCurrentBetAmount(0);
                   setBetProcessed(true);
                   setAutoCashoutActive(false);
@@ -578,12 +574,8 @@ export default function Crash() {
                 
                 if (specificMessage.type === 'auto_cashout_triggered') {
                   // Only handle state updates, no notifications
-                  // if (typeof specificMessage.newBalance === 'number') { // This line is no longer needed
-                  //   setLocalBalance(specificMessage.newBalance);
-                  // } else if (specificMessage.cashoutAmount) {
-                  //   updateLocalBalance(parseFloat(specificMessage.cashoutAmount));
-                  // }
-                  refreshBalance();
+                  // Balance already updated immediately in handleAutoCashout
+                  // Balance already refreshed immediately in handleAutoCashout
                   setCurrentBetAmount(0);
                   setBetProcessed(true);
                   setAutoCashoutActive(false);
@@ -656,9 +648,7 @@ export default function Crash() {
                   const cashoutMultiplier = normalized.userBet.cashoutValue || 1;
                   const payoutAmount = betAmount * cashoutMultiplier;
 
-                  // Update balance with the payout
-                  // updateLocalBalance(payoutAmount); // This line is no longer needed
-                  refreshBalance();
+                  // Balance already updated immediately in handleAutoCashout
                   
                   // Show notification
                   addNotification(`Auto cashed out at ${normalized.userBet.cashoutValue}x`, 'success');
@@ -713,24 +703,15 @@ export default function Crash() {
                 }
               }
               break;
-            case 'round_completed':
-              if (message.crashPoint && message.roundNumber) {
-                const multiplier = parseFloat(message.crashPoint);
-                const roundNumber = message.roundNumber;
-                
-                setLastRounds(prev => {
-                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
-                  if (existingRound) {
-                    return prev;
-                  }
-                  // Add new round to beginning and keep most recent 20
-                  const newRounds = [
-                    { multiplier, roundNumber },
-                    ...prev
-                  ];
-                  return newRounds.slice(0, 20);
-                });
+            case 'round_complete':
+              if (message.roundNumber && message.crashPoint) {
+                setLastRounds(prev => [
+                  { multiplier: message.crashPoint, roundNumber: message.roundNumber },
+                  ...prev.slice(0, 19) // Keep only last 20 rounds
+                ]);
               }
+              
+              // Balance already updated immediately in handleCashout/handleAutoCashout
               break;
             case 'crash_final_value':
               const crashPoint = parseFloat(message.crashPoint);
@@ -890,8 +871,7 @@ export default function Crash() {
           
           // Only refresh balance if there's a bet amount change
           if (message.betAmount !== undefined) {
-            // Small delay to ensure backend has processed the update
-            setTimeout(() => refreshBalance(), 100);
+            // Balance already updated immediately in placeBet
           }
           break;
           
@@ -899,8 +879,7 @@ export default function Crash() {
           if (message.success) {
             addNotification(`Cashout successful! Multiplier: ${message.multiplier}x`, 'success');
             setCurrentBetAmount(0);
-            // Refresh balance after cashout with small delay
-            setTimeout(() => refreshBalance(), 200);
+            // Balance already updated immediately in handleCashout
           } else {
             addNotification(message.error || 'Failed to cashout', 'error');
           }
@@ -926,16 +905,14 @@ export default function Crash() {
           setCurrentBetAmount(0);
           setBetProcessed(false);
           
-          // Refresh balance after game crash with delay to ensure backend processing
-          setTimeout(() => refreshBalance(), 300);
+          // Balance already updated immediately in handleCashout/handleAutoCashout
           break;
           
         case 'user_specific_update':
           if (userProfile && String(message.userData.id) === String(userProfile.id)) {
             // Handle user-specific updates
             if (message.cashoutAmount) {
-              // Refresh balance after user-specific update
-              setTimeout(() => refreshBalance(), 100);
+              // Balance already updated immediately in handleCashout
             }
             setCurrentBetAmount(0);
           }
@@ -945,8 +922,7 @@ export default function Crash() {
           if (userProfile && String(message.userData.id) === String(userProfile.id)) {
             // Handle auto-cashout updates
             if (message.cashoutAmount) {
-              // Refresh balance after auto-cashout
-              setTimeout(() => refreshBalance(), 200);
+              // Balance already updated immediately in handleAutoCashout
             }
             setCurrentBetAmount(0);
           }
@@ -960,8 +936,7 @@ export default function Crash() {
             ]);
           }
           
-          // Refresh balance after round completion with delay
-          setTimeout(() => refreshBalance(), 200);
+          // Balance already updated immediately in handleCashout/handleAutoCashout
           break;
           
         case 'error':
@@ -1032,14 +1007,12 @@ export default function Crash() {
       setBetProcessed(true);
       addNotification('Bet placed successfully!', 'success');
       
-      // Don't update local balance - let the backend handle it and refresh the global balance
+      // IMMEDIATE updates like Hi-Lo - no delays
       setCurrentBetAmount(bet);
       setBetProcessed(false);
       
-      // Refresh balance after placing bet
-      setTimeout(() => {
-        refreshBalance();
-      }, 100);
+      // Refresh balance immediately after placing bet
+      refreshBalance();
     } catch (error) {
       console.error('Error placing bet:', error);
       addNotification('Failed to place bet', 'error');
@@ -1066,8 +1039,12 @@ export default function Crash() {
       websocketService.sendGameAction('cashout');
       addNotification('Cashout requested!', 'success');
       
-      // Don't update local balance - let the backend handle it and refresh the global balance
-      // The balance will be updated when we receive the cashout_confirmed message
+      // IMMEDIATE updates like Hi-Lo - no delays
+      setCurrentBetAmount(0);
+      setBetProcessed(true);
+      
+      // Refresh balance immediately after cashout
+      refreshBalance();
     } catch (error) {
       console.error('Error requesting cashout:', error);
       addNotification('Failed to request cashout', 'error');
@@ -1099,8 +1076,12 @@ export default function Crash() {
       websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
       addNotification(`Auto-cashout set to ${autoCashout}x`, 'success');
       
-      // Don't update local balance - let the backend handle it and refresh the global balance
-      // The balance will be updated when we receive the auto_cashout_triggered message
+      // IMMEDIATE updates like Hi-Lo - no delays
+      setCurrentBetAmount(0);
+      setBetProcessed(true);
+      
+      // Refresh balance immediately after auto-cashout
+      refreshBalance();
     } catch (error) {
       console.error('Error setting auto-cashout:', error);
       addNotification('Failed to set auto-cashout', 'error');
@@ -1124,11 +1105,15 @@ export default function Crash() {
       
       if (newAutoCashoutActive) {
         websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
+        // Refresh balance after setting auto-cashout
+        refreshBalance();
       } else {
         websocketService.sendGameAction('auto_cashout', { targetMultiplier: 0 });
         if (typeof window !== 'undefined') {
           localStorage.setItem('crash_auto_cashout_active', 'false');
         }
+        // Refresh balance after disabling auto-cashout
+        refreshBalance();
       }
     } else if (action === 'cashout') {
       if (crashState.phase !== 'playing') {
@@ -1136,6 +1121,8 @@ export default function Crash() {
         return;
       }
       websocketService.sendGameAction('cashout');
+      // Refresh balance after cashout action
+      refreshBalance();
     }
   };
 
