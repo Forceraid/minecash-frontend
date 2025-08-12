@@ -499,6 +499,12 @@ export default function Crash() {
           setIsConnected(false);
         },
         onMessage: (message) => {
+          // Explicitly filter out ping/pong messages to prevent notifications
+          if (message.type === 'ping' || message.type === 'pong' || 
+              (message.type && message.type.toLowerCase().includes('pong'))) {
+            return;
+          }
+
           switch (message.type) {
             case 'joined_game':
               break;
@@ -788,6 +794,12 @@ export default function Crash() {
     if (!isConnected) return;
 
     const handleMessage = (message: any) => {
+      // Explicitly filter out ping/pong messages to prevent notifications
+      if (message.type === 'ping' || message.type === 'pong' || 
+          (message.type && message.type.toLowerCase().includes('pong'))) {
+        return;
+      }
+
       switch (message.type) {
         case 'game_state_update':
           if (message.phase) {
