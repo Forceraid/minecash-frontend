@@ -533,7 +533,7 @@ export default function HiLo() {
     setBetInput(newBet.toString());
   };
 
-  const handlePlaceBet = async (choice: 'higher' | 'lower') => {
+  const handlePlaceBet = async (choice: 'higher' | 'lower' | 'same') => {
     // Initialize sound system on first user interaction
     soundSystem.initializeAfterUserInteraction();
 
@@ -707,11 +707,11 @@ export default function HiLo() {
                     </div>
                     <div>
                       <span className="text-gray-400">Multiplier: </span>
-                      <span className="text-yellow-400 font-bold text-xl">{(gameState.playerData?.multiplier || 1.5).toFixed(2)}x</span>
+                      <span className="text-yellow-400 font-bold text-xl">{(gameState.playerData?.multiplier || 1.07).toFixed(2)}x</span>
                     </div>
                     <div>
                       <span className="text-gray-400">Potential win: </span>
-                      <span className="text-white font-bold">{(bet * (gameState.playerData?.multiplier || 1.5)).toFixed(0)} GC</span>
+                      <span className="text-white font-bold">{(bet * (gameState.playerData?.multiplier || 1.07)).toFixed(0)} GC</span>
                     </div>
                     <div>
                       <span className="text-gray-400">Your balance: </span>
@@ -740,6 +740,17 @@ export default function HiLo() {
                 >
                    Bet lower
                 </button>
+                
+                {/* Same button - only show for King/Ace */}
+                {gameState.currentCard && ['KING', 'ACE'].includes(gameState.currentCard.value) && (
+                  <button 
+                    className={`w-full ${gameState.phase === 'betting' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 cursor-not-allowed'} text-white px-4 py-3 rounded font-semibold transition-colors text-lg`}
+                    onClick={() => gameState.phase === 'betting' && handlePlaceBet('same')}
+                    disabled={gameState.phase !== 'betting'}
+                  >
+                     Bet same
+                  </button>
+                )}
                  
                  <div className="bg-gray-800 rounded p-3" style={{ marginTop: '13px' }}>
                    <div className="text-center text-sm text-gray-400">
@@ -821,19 +832,19 @@ export default function HiLo() {
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>1-2 wins:</span>
-                          <span className="text-yellow-400">1.5x</span>
+                          <span className="text-yellow-400">1.07x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>3-5 wins:</span>
-                          <span className="text-yellow-400">2.0x</span>
+                          <span className="text-yellow-400">1.28x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>6-9 wins:</span>
-                          <span className="text-yellow-400">3.0x</span>
+                          <span className="text-yellow-400">1.48x</span>
                         </div>
                         <div className="flex justify-between">
                           <span>10+ wins:</span>
-                          <span className="text-yellow-400">5.0x</span>
+                          <span className="text-yellow-400">2.00x</span>
                         </div>
                       </div>
                     </div>
