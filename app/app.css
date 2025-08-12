@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0F0F0F;
+  color: #FFFFFF;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Hide main page scrollbar */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+/* Custom Casino Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(44, 44, 44, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FFD700 0%, #FFA500 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #FFA500 0%, #FFD700 100%);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 12px rgba(255, 215, 0, 0.6);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #FF8C00 0%, #FFD700 100%);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 16px rgba(255, 215, 0, 0.8);
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #FFD700 rgba(44, 44, 44, 0.3);
+}
+
+/* Hide scrollbar but keep scrolling functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+/* Show scrollbar on larger screens */
+.scrollbar-auto {
+  -ms-overflow-style: auto;  /* Internet Explorer 10+ */
+  scrollbar-width: auto;  /* Firefox */
+}
+
+.scrollbar-auto::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-auto::-webkit-scrollbar-track {
+  background: rgba(44, 44, 44, 0.3);
+  border-radius: 4px;
+}
+
+.scrollbar-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FFD700 0%, #FFA500 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* Button Components */
+.btn-light,
+.btn-medium,
+.btn-dark,
+.btn-gold,
+.btn-accent {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* New Casino Theme Buttons */
+.btn-light {
+  background-color: #FFFFFF;
+  color: #000000;
+}
+
+.btn-light:hover {
+  background-color: #f0f0f0;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 0 30px rgba(255, 215, 0, 0.4),
+    0 0 60px rgba(255, 215, 0, 0.2),
+    rgba(255, 215, 0, 0.4) 0px -2px 8px 0px inset;
+}
+
+.btn-gold {
+  background-color: #FFD700;
+  color: #2C2C2C;
+}
+
+.btn-gold:hover {
+  background-color: #e6c200;
+  transform: translateY(-2px);
+  box-shadow: 
+    rgba(255, 255, 255, 0.4) 0px 0px 30px,
+    rgba(255, 255, 255, 0.2) 0px 0px 60px,
+    rgba(255, 215, 0, 0.6) 0px -2px 8px 0px inset;
+}
+
+.btn-accent {
+  background-color: #E63946;
+  color: #FFFFFF;
+}
+
+.btn-accent:hover {
+  background-color: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: rgba(230, 57, 70, 0.5) 0px 60px 120px -20px, rgba(0, 0, 0, 0.4) 0px 40px 80px -30px, rgba(230, 57, 70, 0.6) 0px -2px 8px 0px inset;
+}
+
+/* Legacy buttons for backward compatibility */
+.btn-medium {
+  background-color: #5fa8d3;
+  color: white;
+}
+
+.btn-medium:hover {
+  background-color: #4a97c2;
+  transform: translateY(-2px);
+  box-shadow: rgba(50, 50, 93, 0.3) 0px 60px 120px -20px, rgba(0, 0, 0, 0.4) 0px 40px 80px -30px, rgba(10, 37, 64, 0.4) 0px -2px 8px 0px inset;
+}
+
+.btn-dark {
+  background-color: #2C2C2C;
+  color: white;
+}
+
+.btn-dark:hover {
+  background-color: #1a1a1a;
+  transform: translateY(-2px);
+  box-shadow: rgba(44, 44, 44, 0.5) 0px 60px 120px -20px, rgba(0, 0, 0, 0.4) 0px 40px 80px -30px, rgba(44, 44, 44, 0.6) 0px -2px 8px 0px inset;
+}
+
+.btn-light:disabled,
+.btn-medium:disabled,
+.btn-dark:disabled,
+.btn-gold:disabled,
+.btn-accent:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Landing Page Specific Styles */
+.hero-logo {
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.3));
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.game-card {
+  background: linear-gradient(135deg, #2C2C2C 0%, #1a1a1a 100%);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 215, 0, 0.8);
+  box-shadow: 
+    0 20px 40px rgba(255, 215, 0, 0.3),
+    0 0 30px rgba(255, 215, 0, 0.4),
+    inset 0 1px 0 rgba(255, 215, 0, 0.2);
+}
+
+.review-card {
+  background: linear-gradient(135deg, #2C2C2C 0%, #1a1a1a 100%);
+  border: 1px solid rgba(255, 215, 0, 0.1);
+}
+
+.star-rating {
+  color: #FFD700;
+}
+
+.proof-image {
+  filter: brightness(0.8) sepia(0.2) hue-rotate(30deg);
+  transition: all 0.3s ease;
+}
+
+.proof-image:hover {
+  filter: brightness(1) sepia(0) hue-rotate(0deg);
+}
+
+/* Fix hero section spacing at problematic breakpoints */
+@media (min-width: 1020px) and (max-width: 1200px) {
+  .hero-section {
+    min-height: 120vh;
+    padding-top: 6rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .hero-section {
+    padding-top: 5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding-top: 4rem;
+  }
+}
+
+/* Seamless Scrolling Animations - Optimized for Performance */
+@keyframes scroll-left {
+  0% { transform: translate3d(0%, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes scroll-right {
+  0% { transform: translate3d(-50%, 0, 0); }
+  100% { transform: translate3d(0%, 0, 0); }
+}
+
+.animate-scroll-left {
+  animation: scroll-left 50s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.animate-scroll-right {
+  animation: scroll-right 50s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

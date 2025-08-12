@@ -1,0 +1,1395 @@
+import type { Route } from "./+types/crash";
+import { useAuth } from "../../contexts/AuthContext";
+import { useGCBalance } from "../../contexts/GCBalanceContext";
+import { LightButton, GoldButton } from "../../components/Button";
+import { ChatSidebar } from "../../components/ChatSidebar";
+import { NotificationManager } from "../../components/Notification";
+import { GamemodeAccessCheck } from "../../components/GamemodeAccessCheck";
+import { Link } from "react-router";
+import { useState, useEffect, useRef } from "react";
+import { websocketService } from "../../lib/websocket";
+import CrashRocketScene from "../../components/CrashRocketScene";
+import soundSystem from "../../lib/sound-system";
+
+export { meta } from "./+types/crash";
+
+// Helper function to safely construct API URLs
+const getApiUrl = (endpoint: string) => {
+  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+  // Remove trailing slash if present to prevent double slashes
+  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${cleanBaseUrl}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+};
+
+// GameLiveView component with real-time integration
+function GameLiveView({ gameState, crashState, isConnected, lastRounds, interpolatedMultiplier }: { 
+  gameState: string; 
+  crashState: any; 
+  isConnected: boolean; 
+  lastRounds: Array<{multiplier: number, roundNumber: number}>;
+  interpolatedMultiplier: number;
+}) {
+  const multiplier = crashState?.currentMultiplier ? parseFloat(crashState.currentMultiplier) : 1.0;
+  const phase = crashState?.phase || 'betting';
+  const roundNumber = crashState?.currentRoundNumber || 1;
+  
+  const getVisibleRounds = () => {
+    if (typeof window === 'undefined') return 20;
+    const width = window.innerWidth;
+    if (width < 640) return 8;
+    if (width < 768) return 12;
+    if (width < 1024) return 16;
+    return 20;
+  };
+  
+  const [visibleRounds, setVisibleRounds] = useState(getVisibleRounds());
+  
+  useEffect(() => {
+    const handleResize = () => setVisibleRounds(getVisibleRounds());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const getPhaseText = () => {
+    switch (phase) {
+      case 'betting': return 'Place your bets!';
+      case 'playing': return 'Flying to the Moon!';
+      case 'crashed': return 'Crashed!';
+      case 'waiting': return 'Preparing next Round...';
+      default: return `Phase: ${phase}`;
+    }
+  };
+
+  return (
+    <div className="w-full h-[500px] bg-[#F5F5F5] rounded-lg border-2 border-yellow-400 relative overflow-hidden">
+      {/* 3D Rocket Scene */}
+      <div className="absolute inset-0 z-0">
+        <CrashRocketScene 
+          multiplier={parseFloat(multiplier.toString())} 
+          phase={phase} 
+          className="w-full h-full"
+        />
+      </div>
+      
+      {/* UI Overlay */}
+      <div className={`absolute z-10 pointer-events-none transition-all duration-500 ${
+        phase === 'playing' 
+          ? 'top-2 right-2 sm:top-4 sm:right-4 md:top-6 md:right-6 flex flex-col items-end' 
+          : 'inset-0 flex items-center justify-center'
+      }`}>
+        <div className={`text-black ${phase === 'playing' ? 'text-right' : 'text-center'}`}>
+          {/* Multiplier Display */}
+          <div className="mb-2 sm:mb-4 lg:mb-6">
+            <div className={`font-bold text-yellow-400 mb-1 sm:mb-2 drop-shadow-lg ${
+              phase === 'playing' 
+                ? 'text-lg sm:text-2xl md:text-3xl lg:text-4xl' 
+                : 'text-4xl sm:text-6xl md:text-8xl lg:text-9xl'
+            }`}>
+              {multiplier.toFixed(2)}x
+            </div>
+          </div>
+
+          {/* Round Info - Hide during playing */}
+          {phase !== 'playing' && (
+            <div className="mb-2 sm:mb-4 lg:mb-6">
+              <div className="text-xs opacity-70 break-all max-w-[150px] sm:max-w-[200px] md:max-w-xs mx-auto mb-1 sm:mb-2">
+                {crashState?.serverSeedHash || crashState?.gameHash || 'Loading...'}
+              </div>
+              <div className="text-xs sm:text-sm font-mono text-gray-600 mb-1">Round</div>
+              <div className="text-sm sm:text-lg md:text-xl font-bold text-black">
+                {crashState?.currentRoundNumber || 1}
+              </div>
+            </div>
+          )}
+
+          {/* Game Status Indicators */}
+          <div className={`flex space-x-2 sm:space-x-3 md:space-x-4 ${phase === 'playing' ? 'justify-end' : 'justify-center'}`}>
+            {phase === 'playing' && (
+              <div className="bg-green-600 rounded-lg w-10 h-5 sm:w-12 sm:h-6 md:w-16 md:h-8 flex items-center justify-center text-white font-bold text-xs sm:text-sm md:text-base animate-pulse">
+                LIVE
+              </div>
+            )}
+            {phase === 'crashed' && (
+              <div className="bg-red-600 rounded-lg w-12 h-8 sm:w-16 sm:h-10 md:w-24 md:h-16 flex items-center justify-center text-white font-bold text-sm sm:text-lg md:text-xl animate-bounce">
+                CRASH
+              </div>
+            )}
+            {phase === 'betting' && (
+              <div className="bg-blue-600 rounded-lg w-12 h-8 sm:w-16 sm:h-10 md:w-20 md:h-16 flex items-center justify-center text-white font-bold text-sm sm:text-lg md:text-xl">
+                BET
+              </div>
+            )}
+          </div>
+
+          {/* Connection Warning */}
+          {!isConnected && (
+            <div className="mt-2 sm:mt-3 md:mt-4 p-2 sm:p-3 bg-red-600 rounded-lg">
+              <div className="text-xs sm:text-sm md:text-base font-semibold text-white">Connection lost</div>
+              <div className="text-xs opacity-80 text-white">Reconnecting...</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Last Rounds Bar */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm">
+        <div className="flex justify-center items-center h-12 px-2">
+          <div 
+            className="flex space-x-1 overflow-x-auto max-w-full scrollbar-hide sm:scrollbar-auto"
+            ref={(el) => {
+              if (el && lastRounds.length > 0) {
+                el.scrollLeft = el.scrollWidth;
+              }
+            }}
+          >
+            {lastRounds.slice(0, visibleRounds).map((round, index) => (
+              <div
+                key={`${round.roundNumber}-${index}`}
+                className={`flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-white font-bold text-xs ${
+                  round.multiplier >= 2 ? 'bg-green-600' : 'bg-red-600'
+                }`}
+                title={`Round ${round.roundNumber}: ${round.multiplier.toFixed(2)}x`}
+              >
+                {round.multiplier.toFixed(2)}
+              </div>
+            ))}
+            {lastRounds.length === 0 && (
+              <div className="text-white text-xs opacity-70">Loading recent rounds...</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Crash() {
+  const { user, loading, session, userProfile } = useAuth();
+  const { balance, refreshBalance } = useGCBalance();
+  
+  // UI Settings with localStorage persistence
+  const [bet, setBet] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_bet_amount');
+      return saved ? parseFloat(saved) : 10;
+    }
+    return 10;
+  });
+  
+  const [betInput, setBetInput] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_bet_amount');
+      return saved ? saved : "10";
+    }
+    return "10";
+  });
+  
+  const [autoCashout, setAutoCashout] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_auto_cashout_value');
+      return saved ? parseFloat(saved) : 1.5;
+    }
+    return 1.5;
+  });
+  
+  const [autoCashoutActive, setAutoCashoutActive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_auto_cashout_active');
+      return saved === 'true';
+    }
+    return false;
+  });
+  
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_sound_enabled');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
+  
+  const [soundVolume, setSoundVolume] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crash_sound_volume');
+      return saved ? parseFloat(saved) : 0.7;
+    }
+    return 0.7;
+  });
+  
+  // Game State
+  const [isConnected, setIsConnected] = useState(false);
+  const [gameState, setGameState] = useState('waiting');
+  const [currentBetAmount, setCurrentBetAmount] = useState(0);
+  const [lastRounds, setLastRounds] = useState<Array<{multiplier: number, roundNumber: number}>>([]);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    message: string;
+    type: 'error' | 'success' | 'warning';
+  }>>([]);
+  
+  const [crashState, setCrashState] = useState({
+    phase: 'betting',
+    currentMultiplier: 1.0,
+    currentRoundNumber: 1,
+    activePlayersCount: 0,
+    totalBetAmount: 0.00,
+    currentCrashPoint: 1.0,
+    gameHash: null,
+    serverSeedHash: null,
+    clientSeed: null,
+    nonce: 1,
+    phaseStartTime: Date.now()
+  });
+
+  // Animation State
+  const [interpolatedMultiplier, setInterpolatedMultiplier] = useState(1.0);
+  const [lastWebSocketUpdate, setLastWebSocketUpdate] = useState<number>(0);
+  const [animationFrameId, setAnimationFrameId] = useState<number | null>(null);
+  
+  // Refs for optimization
+  const lastPhaseForSound = useRef('betting');
+  const lastTensionSound = useRef(0);
+  const soundEnabledRef = useRef(soundEnabled);
+  const lastAutoNotifyAtRef = useRef<number>(0);
+  
+  // State tracking
+  const [betProcessed, setBetProcessed] = useState(false);
+  const [lastRoundNumber, setLastRoundNumber] = useState(1);
+  const [gameConfig, setGameConfig] = useState({
+    betLimits: { min: 1, max: 1000 },
+    gameTiming: { bettingPhase: 10000 }
+  });
+  
+  // Remove localBalance state and use the global balance directly
+  // This ensures the header and all components stay in sync
+
+  // Save settings to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crash_bet_amount', bet.toString());
+    }
+  }, [bet]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crash_auto_cashout_value', autoCashout.toString());
+    }
+  }, [autoCashout]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crash_auto_cashout_active', autoCashoutActive.toString());
+    }
+  }, [autoCashoutActive]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crash_sound_enabled', soundEnabled.toString());
+    }
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crash_sound_volume', soundVolume.toString());
+    }
+  }, [soundVolume]);
+
+  // Fetch recent rounds from API
+  useEffect(() => {
+    const fetchRecentRounds = async () => {
+      if (user && session?.access_token) {
+        try {
+          const response = await fetch(getApiUrl('/game/crash-main/history?limit=20'), {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const apiRounds = await response.json();
+            if (Array.isArray(apiRounds) && apiRounds.length > 0) {
+              const currentRoundNumber = crashState?.currentRoundNumber || 1;
+              const convertedRounds = apiRounds
+                .filter((round: any) => {
+                  const roundNumber = round.round_number || 1;
+                  const isCompleted = round.status === 'completed';
+                  const isNotCurrent = roundNumber !== currentRoundNumber;
+                  return isCompleted && isNotCurrent;
+                })
+                .map((round: any) => ({
+                  multiplier: parseFloat(round.game_data?.currentCrashPoint || 1.0),
+                  roundNumber: round.round_number || 1
+                }))
+                .sort((a: any, b: any) => b.roundNumber - a.roundNumber)
+                .slice(0, 20);
+              
+              if (convertedRounds.length > 0) {
+                setLastRounds(convertedRounds);
+              }
+            }
+          }
+        } catch (error) {
+          // Silent error handling
+        }
+      }
+    };
+    
+    fetchRecentRounds();
+  }, [crashState?.currentRoundNumber, user, session?.access_token]);
+
+  // Balance management
+  const updateLocalBalance = (amount: number) => {
+    // This function is no longer needed as localBalance is removed
+    // The global balance context handles the actual balance state
+  };
+
+  const syncBalanceWithServer = () => {
+    // This function is no longer needed as localBalance is removed
+    // The global balance context handles the actual balance state
+  };
+
+  useEffect(() => {
+    // This effect is no longer needed as localBalance is removed
+    // The global balance context handles the actual balance state
+  }, [balance]);
+
+  useEffect(() => {
+    setBetInput(bet.toString());
+  }, [bet]);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  // Notification helpers
+  const addNotification = (message: string, type: 'error' | 'success' | 'warning') => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    setNotifications(prev => [...prev, { id, message, type }]);
+    
+    if (soundEnabled) {
+      soundSystem.play('notification');
+    }
+    
+    setTimeout(() => {
+      removeNotification(id);
+    }, 2000);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Sound system setup
+  useEffect(() => {
+    soundSystem.setEnabled(soundEnabled);
+    soundSystem.setVolume(soundVolume);
+    
+    if (typeof window !== 'undefined') {
+      const handleUserInteraction = () => {
+        soundSystem.initializeAfterUserInteraction();
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
+      };
+      
+      document.addEventListener('click', handleUserInteraction);
+      document.addEventListener('keydown', handleUserInteraction);
+      document.addEventListener('touchstart', handleUserInteraction);
+      
+      return () => {
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
+      };
+    }
+  }, [soundEnabled, soundVolume]);
+
+  // Animation loop
+  useEffect(() => {
+    const animate = () => {
+      if (crashState.phase === 'playing' && crashState.currentMultiplier > 1.0) {
+        const targetMultiplier = crashState.currentMultiplier;
+        const currentInterpolated = interpolatedMultiplier;
+        const newInterpolated = currentInterpolated + (targetMultiplier - currentInterpolated) * 0.6;
+        
+        setInterpolatedMultiplier(newInterpolated);
+        
+        if (newInterpolated >= lastTensionSound.current + 0.2) {
+          if (soundEnabled) {
+            soundSystem.playTensionSound(newInterpolated);
+          }
+          lastTensionSound.current = newInterpolated;
+        }
+      } else {
+        setInterpolatedMultiplier(crashState.currentMultiplier);
+      }
+      
+      setAnimationFrameId(requestAnimationFrame(animate));
+    };
+
+    if (isConnected) {
+      setAnimationFrameId(requestAnimationFrame(animate));
+    }
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isConnected, crashState.phase, crashState.currentMultiplier, soundEnabled]);
+
+  // Phase change sounds
+  useEffect(() => {
+    if (crashState.phase !== lastPhaseForSound.current) {
+      switch (crashState.phase) {
+        case 'playing':
+          if (soundEnabled) soundSystem.playRocketLaunch();
+          break;
+        case 'crashed':
+          if (soundEnabled) soundSystem.playCrashSound(crashState.currentMultiplier);
+          break;
+        case 'waiting':
+          if (soundEnabled) soundSystem.play('game_waiting');
+          break;
+      }
+      lastPhaseForSound.current = crashState.phase;
+    }
+  }, [crashState.phase, crashState.currentMultiplier, soundEnabled]);
+
+  // WebSocket connection and message handling
+  // Cleanup function for unmounting
+  useEffect(() => {
+    return () => {
+      // Clean up WebSocket
+      websocketService.leaveGame();
+      websocketService.disconnect();
+      websocketService.resetGamemodeTracking();
+      
+      // Clean up animations
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      
+      // Stop all sounds
+      soundSystem.stopAll();
+      
+      // Reset state
+      setIsConnected(false);
+      setGameState('waiting');
+      setCrashState(prev => ({
+        ...prev,
+        phase: 'betting',
+        currentMultiplier: 1.0
+      }));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user && session?.access_token && !loading) {
+      const wasAlreadyConnected = websocketService.isConnected();
+      
+      websocketService.connect({
+        onConnect: () => {
+          setIsConnected(true);
+          websocketService.joinGame('crash', session.access_token);
+        },
+        onDisconnect: () => {
+          setIsConnected(false);
+        },
+        onMessage: (message) => {
+          switch (message.type) {
+            case 'joined_game':
+              break;
+            case 'join_game_error':
+              addNotification('Failed to join game room. Please refresh the page.', 'error');
+              break;
+            case 'bet_success':
+            case 'bet_confirmed':
+            case 'crash_bet_confirmed':
+              if (message.amount) {
+                setCurrentBetAmount(Number(message.amount));
+                setBetProcessed(false);
+              }
+              if (soundEnabledRef.current) {
+                soundSystem.play('bet_placed');
+              }
+              break;
+            case 'bet_failed':
+              addNotification(message.message || 'Bet failed', 'error');
+              if (soundEnabledRef.current) {
+                soundSystem.play('bet_failed');
+              }
+              if (message.betAmount) {
+                // updateLocalBalance(message.betAmount); // This line is no longer needed
+              }
+              break;
+            case 'cashout_success':
+              addNotification(`Success: cashed out at ${message.cashoutMultiplier || message.cashoutValue}x`, 'success');
+              if (soundEnabledRef.current) {
+                soundSystem.play('cashout_success');
+              }
+              if (message.cashoutAmount) {
+                // updateLocalBalance(message.cashoutAmount); // This line is no longer needed
+              }
+              refreshBalance();
+              setCurrentBetAmount(0);
+              setBetProcessed(true);
+              break;
+            case 'cashout_failed':
+              addNotification(message.message || 'Cashout failed', 'error');
+              if (soundEnabledRef.current) {
+                soundSystem.play('cashout_failed');
+              }
+              break;
+            case 'auto_cashout_success':
+              setAutoCashoutActive(true);
+              if (message.targetMultiplier || message.targetValue) {
+                setAutoCashout(parseFloat(message.targetMultiplier || message.targetValue));
+              }
+              break;
+            case 'auto_cashout_disabled':
+              addNotification(message.message || 'Auto cashout disabled', 'success');
+              setAutoCashoutActive(false);
+              break;
+            case 'auto_cashout_failed':
+              addNotification(message.message || 'Auto cashout failed', 'error');
+              setAutoCashoutActive(false);
+              break;
+            case 'auto_cashout_broadcast':
+              if (message.userData) {
+                if (userProfile && String(message.userData.id) === String(userProfile.id)) {
+                  // Only handle state updates, no notifications
+                  // if (typeof message.newBalance === 'number') { // This line is no longer needed
+                  //   setLocalBalance(message.newBalance);
+                  // } else if (message.cashoutAmount) {
+                  //   updateLocalBalance(parseFloat(message.cashoutAmount));
+                  // }
+                  refreshBalance();
+                  setCurrentBetAmount(0);
+                  setBetProcessed(true);
+                  setAutoCashoutActive(false);
+                }
+              }
+              break;
+            case 'user_specific_message':
+              if (userProfile && String(message.targetUserId) === String(userProfile.id)) {
+                const specificMessage = message.message;
+                
+                if (specificMessage.type === 'auto_cashout_triggered') {
+                  // Only handle state updates, no notifications
+                  // if (typeof specificMessage.newBalance === 'number') { // This line is no longer needed
+                  //   setLocalBalance(specificMessage.newBalance);
+                  // } else if (specificMessage.cashoutAmount) {
+                  //   updateLocalBalance(parseFloat(specificMessage.cashoutAmount));
+                  // }
+                  refreshBalance();
+                  setCurrentBetAmount(0);
+                  setBetProcessed(true);
+                  setAutoCashoutActive(false);
+                }
+                
+                else if (specificMessage.type === 'crash_state_update') {
+                  const state = specificMessage.state || specificMessage;
+                  const normalized = {
+                    phase: state.phase || 'betting',
+                    currentMultiplier: Number(state.currentMultiplier ?? 1.0),
+                    currentRoundNumber: Number(state.currentRoundNumber ?? 1),
+                    activePlayersCount: Number(state.activePlayersCount ?? 0),
+                    totalBetAmount: Number(state.totalBetAmount ?? 0),
+                    currentCrashPoint: Number(state.currentCrashPoint ?? 1.0),
+                    gameHash: state.gameHash || null,
+                    serverSeedHash: state.serverSeedHash || null,
+                    clientSeed: state.clientSeed || null,
+                    nonce: Number(state.nonce ?? 0),
+                    phaseStartTime: state.phaseStartTime ? new Date(state.phaseStartTime).getTime() : Date.now(),
+                    userBet: state.userBet || null
+                  };
+                  
+                  setCrashState(normalized);
+                  setGameState(normalized.phase);
+                  setLastWebSocketUpdate(Date.now());
+                  
+                  if (normalized.userBet && normalized.userBet.status === 'cashed_out' && !betProcessed) {
+                    setCurrentBetAmount(0);
+                    setBetProcessed(true);
+                    refreshBalance();
+                  }
+                }
+              }
+              break;
+            case 'crash_state_update':
+            case 'game_state_update':
+              const state = message.state || message;
+              const normalized = {
+                phase: state.phase || 'betting',
+                currentMultiplier: Number(state.currentMultiplier ?? 1.0),
+                currentRoundNumber: Number(state.currentRoundNumber ?? 1),
+                activePlayersCount: Number(state.activePlayersCount ?? 0),
+                totalBetAmount: Number(state.totalBetAmount ?? 0),
+                currentCrashPoint: Number(state.currentCrashPoint ?? 1.0),
+                gameHash: state.gameHash || null,
+                serverSeedHash: state.serverSeedHash || null,
+                clientSeed: state.clientSeed || null,
+                nonce: Number(state.nonce ?? 0),
+                phaseStartTime: state.phaseStartTime ? new Date(state.phaseStartTime).getTime() : Date.now(),
+                userBet: state.userBet || null
+              };
+
+              if (normalized.currentRoundNumber !== lastRoundNumber) {
+                setBetProcessed(false);
+                setLastRoundNumber(normalized.currentRoundNumber);
+              }
+              
+              setCrashState(normalized);
+              setGameState(normalized.phase);
+              setLastWebSocketUpdate(Date.now());
+              
+              // Handle auto-cashout state update with notification
+              if (normalized.userBet && normalized.userBet.status === 'cashed_out') {
+                const currentRound = normalized.currentRoundNumber;
+                
+                // Only process payout and show notification once per round
+                if (currentRound !== lastAutoNotifyAtRef.current) {
+                  // Calculate payout amount
+                  const betAmount = normalized.userBet.amount || 0;
+                  const cashoutMultiplier = normalized.userBet.cashoutValue || 1;
+                  const payoutAmount = betAmount * cashoutMultiplier;
+
+                  // Update balance with the payout
+                  // updateLocalBalance(payoutAmount); // This line is no longer needed
+                  refreshBalance();
+                  
+                  // Show notification
+                  addNotification(`Auto cashed out at ${normalized.userBet.cashoutValue}x`, 'success');
+                  if (soundEnabledRef.current) {
+                    soundSystem.play('cashout_success');
+                  }
+                  
+                  lastAutoNotifyAtRef.current = currentRound;
+                }
+
+                // Always reset bet state but keep auto cashout enabled
+                setCurrentBetAmount(0);
+                setBetProcessed(true);
+              }
+              
+              const betAmountCandidate = state.userBet?.amount ?? 0;
+              const currentPhase = normalized.phase;
+              
+              if (state.userBet && state.userBet.autoCashout) {
+                setAutoCashoutActive(true);
+                setAutoCashout(parseFloat(state.userBet.autoCashout.targetValue || '1.5'));
+              } else if (state.userBet && state.userBet.autoCashout === false) {
+                setAutoCashoutActive(false);
+              }
+              
+              if (currentPhase === 'crashed' && normalized.currentMultiplier > 1.0) {
+                const multiplier = normalized.currentMultiplier;
+                const roundNumber = normalized.currentRoundNumber;
+                
+                setLastRounds(prev => {
+                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
+                  if (existingRound) {
+                    return prev;
+                  }
+                  return [
+                    { multiplier, roundNumber },
+                    ...prev.slice(0, 19)
+                  ];
+                });
+              }
+              
+              // Only update bet amount if we haven't processed a cashout
+              if (!betProcessed && normalized.userBet?.status !== 'cashed_out') {
+                if (betAmountCandidate && Number(betAmountCandidate) > 0 && currentPhase !== 'crashed' && currentPhase !== 'waiting') {
+                  setCurrentBetAmount(prev => {
+                    const newAmount = Number(betAmountCandidate);
+                    return prev !== newAmount ? newAmount : prev;
+                  });
+                } else if (currentPhase === 'crashed' || currentPhase === 'waiting') {
+                  setCurrentBetAmount(0);
+                  setBetProcessed(true);
+                }
+              }
+              break;
+            case 'round_completed':
+              if (message.crashPoint && message.roundNumber) {
+                const multiplier = parseFloat(message.crashPoint);
+                const roundNumber = message.roundNumber;
+                
+                setLastRounds(prev => {
+                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
+                  if (existingRound) {
+                    return prev;
+                  }
+                  // Add new round to beginning and keep most recent 20
+                  const newRounds = [
+                    { multiplier, roundNumber },
+                    ...prev
+                  ];
+                  return newRounds.slice(0, 20);
+                });
+              }
+              break;
+            case 'crash_final_value':
+              const crashPoint = parseFloat(message.crashPoint);
+              setCrashState(prevState => ({
+                ...prevState,
+                currentMultiplier: crashPoint,
+                phase: 'crashed'
+              }));
+              
+              if (message.crashPoint && message.roundNumber) {
+                const multiplier = parseFloat(message.crashPoint);
+                const roundNumber = message.roundNumber;
+                
+                setLastRounds(prev => {
+                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
+                  if (existingRound) {
+                    return prev;
+                  }
+                  // Add new round to beginning and keep most recent 20
+                  const newRounds = [
+                    { multiplier, roundNumber },
+                    ...prev
+                  ];
+                  return newRounds.slice(0, 20);
+                });
+              }
+              
+              if (currentBetAmount > 0 && !betProcessed) {
+                setCurrentBetAmount(0);
+                setBetProcessed(true);
+              }
+              setBetProcessed(true);
+              break;
+            case 'game_config_update':
+              if (message.config) {
+                setGameConfig(prev => ({
+                  ...prev,
+                  ...message.config
+                }));
+              }
+              break;
+            case 'error':
+              const errorMsg = message.message || '';
+              if (!errorMsg.toLowerCase().includes('pong') && !errorMsg.toLowerCase().includes('ping')) {
+                addNotification(message.message || 'An error occurred', 'error');
+              }
+              break;
+          }
+        },
+        onError: (error) => {
+          const errorMessage = error?.toString() || '';
+          if (!errorMessage.toLowerCase().includes('pong') && !errorMessage.toLowerCase().includes('ping')) {
+            setIsConnected(false);
+            addNotification('Connection lost. Attempting to reconnect...', 'warning');
+          }
+        }
+      });
+
+      if (wasAlreadyConnected) {
+        setIsConnected(true);
+        websocketService.joinGame('crash', session.access_token);
+      }
+
+      return () => {
+        websocketService.leaveGame();
+        soundSystem.stopAll();
+      };
+    }
+  }, [user, session?.access_token, loading]);
+
+  // Handle WebSocket messages
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleMessage = (message: any) => {
+      console.log('Game message received:', message);
+      
+      switch (message.type) {
+        case 'game_state_update':
+          if (message.phase) {
+            setCrashState(prev => ({
+              ...prev,
+              phase: message.phase,
+              phaseStartTime: Date.now()
+            }));
+            
+            // Reset bet processed flag when entering betting phase
+            if (message.phase === 'betting') {
+              setBetProcessed(false);
+              setCurrentBetAmount(0);
+            }
+          }
+          
+          if (message.currentMultiplier !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              currentMultiplier: message.currentMultiplier
+            }));
+          }
+          
+          if (message.currentRoundNumber !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              currentRoundNumber: message.currentRoundNumber
+            }));
+            setLastRoundNumber(message.currentRoundNumber);
+          }
+          
+          if (message.activePlayersCount !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              activePlayersCount: message.activePlayersCount
+            }));
+          }
+          
+          if (message.totalBetAmount !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              totalBetAmount: message.totalBetAmount
+            }));
+          }
+          
+          if (message.currentCrashPoint !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              currentCrashPoint: message.currentCrashPoint
+            }));
+          }
+          
+          if (message.gameHash) {
+            setCrashState(prev => ({
+              ...prev,
+              gameHash: message.gameHash
+            }));
+          }
+          
+          if (message.serverSeedHash) {
+            setCrashState(prev => ({
+              ...prev,
+              serverSeedHash: message.serverSeedHash
+            }));
+          }
+          
+          if (message.clientSeed) {
+            setCrashState(prev => ({
+              ...prev,
+              clientSeed: message.clientSeed
+            }));
+          }
+          
+          if (message.nonce) {
+            setCrashState(prev => ({
+              ...prev,
+              nonce: message.nonce
+            }));
+          }
+          
+          // Only refresh balance if there's a bet amount change
+          if (message.betAmount !== undefined) {
+            // Small delay to ensure backend has processed the update
+            setTimeout(() => refreshBalance(), 100);
+          }
+          break;
+          
+        case 'bet_confirmed':
+          if (message.success) {
+            addNotification('Bet placed successfully!', 'success');
+            setCurrentBetAmount(message.betAmount || bet);
+            setBetProcessed(false);
+            // Refresh balance after bet confirmation with small delay
+            setTimeout(() => refreshBalance(), 100);
+          } else {
+            addNotification(message.error || 'Failed to place bet', 'error');
+          }
+          break;
+          
+        case 'cashout_confirmed':
+          if (message.success) {
+            addNotification(`Cashout successful! Multiplier: ${message.multiplier}x`, 'success');
+            setCurrentBetAmount(0);
+            // Refresh balance after cashout with small delay
+            setTimeout(() => refreshBalance(), 200);
+          } else {
+            addNotification(message.error || 'Failed to cashout', 'error');
+          }
+          break;
+          
+        case 'game_crashed':
+          if (message.crashPoint !== undefined) {
+            setCrashState(prev => ({
+              ...prev,
+              currentCrashPoint: message.crashPoint
+            }));
+          }
+          
+          // Add to last rounds
+          if (message.roundNumber && message.crashPoint) {
+            setLastRounds(prev => [
+              { multiplier: message.crashPoint, roundNumber: message.roundNumber },
+              ...prev.slice(0, 19) // Keep only last 20 rounds
+            ]);
+          }
+          
+          // Reset game state
+          setCurrentBetAmount(0);
+          setBetProcessed(false);
+          
+          // Refresh balance after game crash with delay to ensure backend processing
+          setTimeout(() => refreshBalance(), 300);
+          break;
+          
+        case 'user_specific_update':
+          if (userProfile && String(message.userData.id) === String(userProfile.id)) {
+            // Handle user-specific updates
+            if (message.cashoutAmount) {
+              // Refresh balance after user-specific update
+              setTimeout(() => refreshBalance(), 100);
+            }
+            setCurrentBetAmount(0);
+          }
+          break;
+          
+        case 'auto_cashout_triggered':
+          if (userProfile && String(message.userData.id) === String(userProfile.id)) {
+            // Handle auto-cashout updates
+            if (message.cashoutAmount) {
+              // Refresh balance after auto-cashout
+              setTimeout(() => refreshBalance(), 200);
+            }
+            setCurrentBetAmount(0);
+          }
+          break;
+          
+        case 'round_complete':
+          if (message.roundNumber && message.crashPoint) {
+            setLastRounds(prev => [
+              { multiplier: message.crashPoint, roundNumber: message.roundNumber },
+              ...prev.slice(0, 19) // Keep only last 20 rounds
+            ]);
+          }
+          
+          // Refresh balance after round completion with delay
+          setTimeout(() => refreshBalance(), 200);
+          break;
+          
+        case 'error':
+          addNotification(message.message || 'An error occurred', 'error');
+          break;
+          
+        default:
+          // Handle other message types if needed
+          break;
+      }
+    };
+
+    // Add message handler to WebSocket service
+    websocketService.addMessageHandler(handleMessage);
+
+    return () => {
+      websocketService.removeMessageHandler(handleMessage);
+    };
+  }, [isConnected, userProfile, bet, refreshBalance]);
+
+  // Event handlers
+  const handleBetInputChange = (value: string) => {
+    setBetInput(value);
+    const numValue = parseInt(value) || 0;
+    if (numValue > 0) {
+      setBet(numValue);
+    }
+  };
+
+  const updateBet = (newBet: number) => {
+    setBet(newBet);
+    setBetInput(newBet.toString());
+  };
+
+  const placeBet = () => {
+    if (!isConnected) {
+      addNotification('Not connected to game server', 'error');
+      return;
+    }
+
+    if (crashState.phase !== 'betting') {
+      addNotification('Cannot place bet while betting is closed', 'error');
+      return;
+    }
+
+    if (betProcessed) {
+      addNotification('Bet already processed for this round', 'error');
+      return;
+    }
+
+    if (bet <= 0) {
+      addNotification('Bet amount must be greater than 0', 'error');
+      return;
+    }
+
+    if (bet > balance) {
+      addNotification('Insufficient balance for this bet', 'error');
+      return;
+    }
+
+    if (bet < gameConfig.betLimits.min || bet > gameConfig.betLimits.max) {
+      addNotification(`Bet must be between ${gameConfig.betLimits.min} and ${gameConfig.betLimits.max} GC`, 'error');
+      return;
+    }
+
+    try {
+      websocketService.placeBet(bet);
+      setBetProcessed(true);
+      addNotification('Bet placed successfully!', 'success');
+      
+      // Don't update local balance - let the backend handle it and refresh the global balance
+      setCurrentBetAmount(bet);
+      setBetProcessed(false);
+      
+      // Refresh balance after placing bet
+      setTimeout(() => {
+        refreshBalance();
+      }, 100);
+    } catch (error) {
+      console.error('Error placing bet:', error);
+      addNotification('Failed to place bet', 'error');
+    }
+  };
+
+  const handleCashout = () => {
+    if (!isConnected) {
+      addNotification('Not connected to game server', 'error');
+      return;
+    }
+
+    if (currentBetAmount === 0) {
+      addNotification('No active bet to cashout', 'error');
+      return;
+    }
+
+    if (crashState.phase !== 'crashing') {
+      addNotification('Can only cashout during crashing phase', 'error');
+      return;
+    }
+
+    try {
+      websocketService.sendGameAction('cashout');
+      addNotification('Cashout requested!', 'success');
+      
+      // Don't update local balance - let the backend handle it and refresh the global balance
+      // The balance will be updated when we receive the cashout_confirmed message
+    } catch (error) {
+      console.error('Error requesting cashout:', error);
+      addNotification('Failed to request cashout', 'error');
+    }
+  };
+
+  const handleAutoCashout = () => {
+    if (!isConnected) {
+      addNotification('Not connected to game server', 'error');
+      return;
+    }
+
+    if (currentBetAmount === 0) {
+      addNotification('No active bet for auto-cashout', 'error');
+      return;
+    }
+
+    if (crashState.phase !== 'crashing') {
+      addNotification('Can only set auto-cashout during crashing phase', 'error');
+      return;
+    }
+
+    if (autoCashout <= 1.0) {
+      addNotification('Auto-cashout must be greater than 1.0x', 'error');
+      return;
+    }
+
+    try {
+      websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
+      addNotification(`Auto-cashout set to ${autoCashout}x`, 'success');
+      
+      // Don't update local balance - let the backend handle it and refresh the global balance
+      // The balance will be updated when we receive the auto_cashout_triggered message
+    } catch (error) {
+      console.error('Error setting auto-cashout:', error);
+      addNotification('Failed to set auto-cashout', 'error');
+    }
+  };
+
+  const handleGameAction = (action: string) => {
+    if (!isConnected) {
+      addNotification('Not connected to server', 'error');
+      return;
+    }
+
+    if (action === 'auto_cashout') {
+      if (crashState.phase !== 'betting') {
+        addNotification('Auto cashout can only be changed during betting phase', 'error');
+        return;
+      }
+      
+      const newAutoCashoutActive = !autoCashoutActive;
+      setAutoCashoutActive(newAutoCashoutActive);
+      
+      if (newAutoCashoutActive) {
+        websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
+      } else {
+        websocketService.sendGameAction('auto_cashout', { targetMultiplier: 0 });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('crash_auto_cashout_active', 'false');
+        }
+      }
+    } else if (action === 'cashout') {
+      if (crashState.phase !== 'playing') {
+        addNotification('Cashout is only available during the playing phase', 'error');
+        return;
+      }
+      websocketService.sendGameAction('cashout');
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (soundEnabled) {
+      soundSystem.play('button_click');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mx-auto mb-4"></div>
+          <p className="text-xl">Loading crash...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="text-6xl mb-4">📈</div>
+          <h2 className="text-3xl font-bold mb-4">Sign in to play crash</h2>
+          <p className="text-lg mb-8">Join our Discord community to start playing</p>
+          <Link to="/">
+            <LightButton>Go home</LightButton>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <GamemodeAccessCheck gamemode="crash">
+      <div className="min-h-screen bg-black">
+        <NotificationManager notifications={notifications} onRemove={removeNotification} />
+        
+        <div className="container mx-auto px-4 py-8 pt-16 sm:pt-20 md:pt-24">
+          <div className="mb-8 mt-8 sm:mt-3 md:mt-4">
+            <GameLiveView 
+              gameState={gameState} 
+              crashState={crashState} 
+              isConnected={isConnected} 
+              lastRounds={lastRounds}
+              interpolatedMultiplier={interpolatedMultiplier}
+            />
+          </div>
+
+          <div className="bg-gray-900 rounded-lg p-4 sm:p-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 xl:items-stretch">
+              {/* Betting Controls */}
+              <div className="h-full flex flex-col">
+                <h3 className="text-white font-bold text-lg mb-4">Place your bet</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-white text-sm block mb-1">Bet amount:</label>
+                    <div className="flex items-center space-x-1 sm:space-x-2 w-full">
+                      <button 
+                        onClick={() => {
+                          updateBet(Math.max(1, bet - 1));
+                          handleButtonClick();
+                        }}
+                        className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+                      >
+                        -1
+                      </button>
+                      <input
+                        type="number"
+                        value={betInput}
+                        onChange={(e) => handleBetInputChange(e.target.value)}
+                        className="bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base"
+                        min="1"
+                        placeholder="0"
+                      />
+                      <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">GC</span>
+                      <button 
+                        onClick={() => {
+                          updateBet(bet + 1);
+                          handleButtonClick();
+                        }}
+                        className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+                      >
+                        +1
+                      </button>
+                    </div>
+                    
+                    {/* Quick Bet Buttons */}
+                    <div className="grid grid-cols-5 gap-1 mt-2">
+                      <button onClick={() => { updateBet(bet + 5); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+5</button>
+                      <button onClick={() => { updateBet(bet + 10); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+10</button>
+                      <button onClick={() => { updateBet(bet + 25); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+25</button>
+                      <button onClick={() => { updateBet(bet + 50); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+50</button>
+                      <button onClick={() => { updateBet(bet + 100); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+100</button>
+                    </div>
+                  </div>
+
+                  {/* Auto Cashout Settings */}
+                  <div>
+                    <label className="text-white text-sm block mb-1">Auto cashout at:</label>
+                    <div className="flex items-center space-x-1 sm:space-x-2 w-full">
+                      <button 
+                        onClick={() => {
+                          setAutoCashout(Math.max(1.1, autoCashout - 0.1));
+                          handleButtonClick();
+                        }}
+                        className={`bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm ${
+                          crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
+                      >
+                        -0.1
+                      </button>
+                      <input
+                        type="number"
+                        value={autoCashout}
+                        onChange={(e) => setAutoCashout(parseFloat(e.target.value) || 1.5)}
+                        className={`bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base ${
+                          crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        min="1.1"
+                        step="0.1"
+                        placeholder="1.5"
+                        disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
+                      />
+                      <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">x</span>
+                      <button 
+                        onClick={() => {
+                          setAutoCashout(autoCashout + 0.1);
+                          handleButtonClick();
+                        }}
+                        className={`bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm ${
+                          crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
+                      >
+                        +0.1
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Game Actions */}
+              <div className="h-full flex flex-col">
+                <div className="mb-8">
+                  <h3 className="text-white font-bold text-lg">Actions</h3>
+                </div>
+                <div className="space-y-2">
+                  {/* Status Notifications */}
+                  {autoCashoutActive && (
+                    <div className="bg-green-600 text-white px-3 py-2 rounded text-sm font-semibold text-center">
+                      Auto cashout enabled at {autoCashout}x
+                    </div>
+                  )}
+                  
+                  {crashState.phase !== 'betting' && (
+                    <div className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold text-center">
+                      Betting is {crashState.phase === 'playing' ? 'closed - game in progress' : 'closed'}
+                    </div>
+                  )}
+                  
+                  <GoldButton 
+                    className="w-full" 
+                    onClick={() => {
+                      placeBet();
+                      handleButtonClick();
+                    }}
+                    disabled={!isConnected || crashState.phase !== 'betting'}
+                  >
+                    {crashState.phase === 'betting' ? 'Bet' : 'Betting closed'}
+                  </GoldButton>
+                  
+                  <button 
+                    className={`w-full px-4 py-2 rounded font-semibold transition-colors cursor-pointer relative ${
+                      autoCashoutActive 
+                        ? 'bg-red-600 hover:bg-red-700 text-white' 
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                    } ${autoCashoutActive ? 'opacity-50' : ''}`}
+                    onClick={() => {
+                      handleGameAction('cashout');
+                      handleButtonClick();
+                    }}
+                    disabled={!isConnected || autoCashoutActive}
+                  >
+                    Cash out
+                    {autoCashoutActive && (
+                      <div className="absolute inset-0 bg-black opacity-20" style={{
+                        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.3) 4px, rgba(0,0,0,0.3) 8px)'
+                      }}></div>
+                    )}
+                  </button>
+                  
+                  <button 
+                    className={`w-full px-4 py-2 rounded font-semibold transition-colors cursor-pointer ${
+                      autoCashoutActive 
+                        ? 'bg-green-600 hover:bg-green-700 text-white' 
+                        : 'bg-red-600 hover:bg-red-700 text-white'
+                    } ${crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => {
+                      handleGameAction('auto_cashout');
+                      handleButtonClick();
+                    }}
+                    disabled={!isConnected || crashState.phase === 'playing' || crashState.phase === 'crashed'}
+                  >
+                    Auto cashout
+                  </button>
+                </div>
+              </div>
+
+              {/* Game Status */}
+              <div className="h-full flex flex-col">
+                <div className="mb-8">
+                  <h3 className="text-white font-bold text-lg">Game status</h3>
+                </div>
+                <div className="bg-gray-800 rounded p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Your balance:</span>
+                    <span className="text-yellow-400 font-bold">{balance} GC</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Current bet:</span>
+                    <span className="text-white font-bold">{currentBetAmount} GC</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-yellow-400 font-bold">{crashState.phase}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Multiplier:</span>
+                    <span className="text-white font-bold">{parseFloat(String(crashState.currentMultiplier)).toFixed(2)}x</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ChatSidebar gamemode="crash" />
+        </div>
+      </div>
+    </GamemodeAccessCheck>
+  );
+}
