@@ -351,13 +351,16 @@ export default function HiLo() {
                   // In betting phase, clear result card and update current card
                   newState.currentCard = state.currentCard;
                   newState.resultCard = null;
-                  // Reset bet state when new betting phase starts
+                  // Reset bet state when new betting phase starts but preserve streak and multiplier
                   if (prevState.phase !== 'betting') {
                     newState.playerData = {
                       ...newState.playerData,
                       betAmount: null,
                       status: 'waiting',
-                      choice: null
+                      choice: null,
+                      // Preserve streak and multiplier from previous state
+                      streak: newState.playerData?.streak || prevState.playerData?.streak || 0,
+                      multiplier: newState.playerData?.multiplier || prevState.playerData?.multiplier || 1.07
                     };
                   }
                 } else if (state.phase === 'reveal' && state.resultCard) {
@@ -368,12 +371,15 @@ export default function HiLo() {
                   // In next_round phase, keep both cards visible
                   newState.currentCard = state.currentCard || prevState.currentCard;
                   newState.resultCard = state.resultCard || prevState.resultCard;
-                  // Reset bet state for next round
+                  // Reset bet state for next round but preserve streak and multiplier
                   newState.playerData = {
                     ...newState.playerData,
                     betAmount: null,
                     status: 'waiting',
-                    choice: null
+                    choice: null,
+                    // Preserve streak and multiplier from previous state
+                    streak: newState.playerData?.streak || prevState.playerData?.streak || 0,
+                    multiplier: newState.playerData?.multiplier || prevState.playerData?.multiplier || 1.07
                   };
                 }
 
