@@ -176,7 +176,7 @@ export default function Blackjack() {
         {/* Particles Background */}
         <div className="absolute inset-0 z-0">
           <Particles
-            particleColors={['#ffffff', '#ffffff']}
+            particleColors={['#C89E00', '#C89E00']}
             particleCount={200}
             particleSpread={10}
             speed={0.1}
