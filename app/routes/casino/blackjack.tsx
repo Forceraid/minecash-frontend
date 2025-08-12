@@ -194,104 +194,106 @@ export default function Blackjack() {
               <GameLiveView />
             </div>
 
-        <div className="bg-gray-900 rounded-lg p-4 sm:p-6 mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 xl:items-stretch">
-            {/* Betting Controls */}
-            <div className="h-full flex flex-col">
-              <h3 className="text-white font-bold text-lg mb-4">Place your bet</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-white text-sm block mb-1">Bet amount:</label>
-                  <div className="flex items-center space-x-1 sm:space-x-2 w-full">
-                    <button 
-                      onClick={() => updateBet(Math.max(1, bet - 1))}
-                      className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+            <div className="bg-gray-900 rounded-lg p-4 sm:p-6 mb-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 xl:items-stretch">
+                {/* Betting Controls */}
+                <div className="h-full flex flex-col">
+                  <h3 className="text-white font-bold text-lg mb-4">Place your bet</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-white text-sm block mb-1">Bet amount:</label>
+                      <div className="flex items-center space-x-1 sm:space-x-2 w-full">
+                        <button 
+                          onClick={() => updateBet(Math.max(1, bet - 1))}
+                          className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+                        >
+                          -1
+                        </button>
+                        <input
+                          type="number"
+                          value={betInput}
+                          onChange={(e) => handleBetInputChange(e.target.value)}
+                          className="bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base"
+                          min="1"
+                          placeholder="0"
+                        />
+                        <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">GC</span>
+                        <button 
+                          onClick={() => updateBet(bet + 1)}
+                          className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+                        >
+                          +1
+                        </button>
+                      </div>
+                      
+                      {/* Quick Bet Buttons */}
+                      <div className="grid grid-cols-5 gap-1 mt-2">
+                        <button onClick={() => updateBet(bet + 5)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+5</button>
+                        <button onClick={() => updateBet(bet + 10)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+10</button>
+                        <button onClick={() => updateBet(bet + 25)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+25</button>
+                        <button onClick={() => updateBet(bet + 50)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+50</button>
+                        <button onClick={() => updateBet(bet + 100)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+100</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Game Actions */}
+                <div className="h-full flex flex-col">
+                  <h3 className="text-white font-bold text-lg mb-4">Actions</h3>
+                  <div className="space-y-2">
+                    <GoldButton 
+                      className="w-full" 
+                      onClick={handlePlaceBet}
+                      disabled={!isConnected}
                     >
-                      -1
+                      Deal
+                    </GoldButton>
+                    <button 
+                      className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleGameAction('hit')}
+                      disabled={!isConnected}
+                    >
+                      Hit
                     </button>
-                    <input
-                      type="number"
-                      value={betInput}
-                      onChange={(e) => handleBetInputChange(e.target.value)}
-                      className="bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base"
-                      min="1"
-                      placeholder="0"
-                    />
-                    <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">GC</span>
                     <button 
-                      onClick={() => updateBet(bet + 1)}
-                      className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
+                      className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleGameAction('stand')}
+                      disabled={!isConnected}
                     >
-                      +1
+                      Stand
+                    </button>
+                    <button 
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleGameAction('double')}
+                      disabled={!isConnected}
+                    >
+                      Double
                     </button>
                   </div>
-                  
-                  {/* Quick Bet Buttons */}
-                  <div className="grid grid-cols-5 gap-1 mt-2">
-                    <button onClick={() => updateBet(bet + 5)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+5</button>
-                    <button onClick={() => updateBet(bet + 10)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+10</button>
-                    <button onClick={() => updateBet(bet + 25)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+25</button>
-                    <button onClick={() => updateBet(bet + 50)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+50</button>
-                    <button onClick={() => updateBet(bet + 100)} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+100</button>
+                </div>
+
+                {/* Game Status */}
+                <div className="h-full flex flex-col">
+                  <h3 className="text-white font-bold text-lg mb-4">Game status</h3>
+                  <div className="bg-gray-800 rounded p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Your balance:</span>
+                      <span className="text-yellow-400 font-bold">{balance} GC</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Current bet:</span>
+                      <span className="text-white font-bold">{bet} GC</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Status:</span>
+                      <span className="text-yellow-400 font-bold">{gameState}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Potential win:</span>
+                      <span className="text-white font-bold">{bet * 2} GC</span>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Game Actions */}
-            <div className="h-full flex flex-col">
-              <h3 className="text-white font-bold text-lg mb-4">Actions</h3>
-              <div className="space-y-2">
-                <GoldButton 
-                  className="w-full" 
-                  onClick={handlePlaceBet}
-                  disabled={!isConnected}
-                >
-                  Deal
-                </GoldButton>
-                <button 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
-                  onClick={() => handleGameAction('hit')}
-                  disabled={!isConnected}
-                >
-                  Hit
-                </button>
-                <button 
-                  className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
-                  onClick={() => handleGameAction('stand')}
-                  disabled={!isConnected}
-                >
-                  Stand
-                </button>
-                <button 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold transition-colors cursor-pointer"
-                  onClick={() => handleGameAction('double')}
-                  disabled={!isConnected}
-                >
-                  Double
-                </button>
-              </div>
-            </div>
-
-            {/* Game Status */}
-            <div className="h-full flex flex-col">
-              <h3 className="text-white font-bold text-lg mb-4">Game status</h3>
-              <div className="bg-gray-800 rounded p-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Your balance:</span>
-                  <span className="text-yellow-400 font-bold">{balance} GC</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Current bet:</span>
-                  <span className="text-white font-bold">{bet} GC</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Status:</span>
-                  <span className="text-yellow-400 font-bold">{gameState}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Potential win:</span>
-                  <span className="text-white font-bold">{bet * 2} GC</span>
                 </div>
               </div>
             </div>
@@ -300,7 +302,6 @@ export default function Blackjack() {
 
         {/* Live Chat */}
         <ChatSidebar gamemode="blackjack" />
-      </div>
       </div>
     </GamemodeAccessCheck>
   );
