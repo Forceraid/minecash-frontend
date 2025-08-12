@@ -319,14 +319,6 @@ export default function HiLo() {
               const state = message.state;
               const prevPhase = gameState.phase;
               
-              console.log('Game State Update:', {
-                phase: state.phase,
-                currentCard: state.currentCard,
-                resultCard: state.resultCard,
-                playerData: state.playerData,
-                cardsRemaining: state.cardsRemaining
-              });
-              
               // Update game state atomically to prevent flickering
               setGameState(prevState => {
                 // Keep existing cards during reveal and next_round phases

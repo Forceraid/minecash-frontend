@@ -122,8 +122,6 @@ export const GCBalanceProvider: React.FC<GCBalanceProviderProps> = ({ children }
     // Don't set up subscription while auth is still loading
     if (authLoading || !user?.id || !userProfile?.id) return
 
-    console.log('Setting up balance subscription for user:', userProfile.id);
-    
     const subscription = gcBalanceHelpers.subscribeToBalance(userProfile.id, (newBalance) => {
       console.log('Balance update received:', newBalance);
       setBalance(newBalance);
