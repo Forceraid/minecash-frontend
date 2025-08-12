@@ -301,7 +301,7 @@ export default function Blackjack() {
         {/* Live Chat */}
         <ChatSidebar gamemode="blackjack" />
       </div>
-      </div>
+    </div>
     </GamemodeAccessCheck>
   );
 } 
