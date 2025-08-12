@@ -709,11 +709,31 @@ export default function HiLo() {
                     </div>
                     <div>
                       <span className="text-gray-400">Multiplier: </span>
-                      <span className="text-yellow-400 font-bold text-xl">{(gameState.playerData?.multiplier || 1.07).toFixed(2)}x</span>
+                      <span className="text-yellow-400 font-bold text-xl">
+                        {(() => {
+                          const streak = gameState.playerData?.streak || 0;
+                          let baseMultiplier;
+                          if (streak <= 2) baseMultiplier = 1.07;
+                          else if (streak <= 5) baseMultiplier = 1.28;
+                          else if (streak <= 9) baseMultiplier = 1.48;
+                          else baseMultiplier = 2.0;
+                          return baseMultiplier.toFixed(2) + 'x';
+                        })()}
+                      </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Potential win: </span>
-                      <span className="text-white font-bold">{(bet * (gameState.playerData?.multiplier || 1.07)).toFixed(0)} GC</span>
+                      <span className="text-white font-bold">
+                        {(() => {
+                          const streak = gameState.playerData?.streak || 0;
+                          let baseMultiplier;
+                          if (streak <= 2) baseMultiplier = 1.07;
+                          else if (streak <= 5) baseMultiplier = 1.28;
+                          else if (streak <= 9) baseMultiplier = 1.48;
+                          else baseMultiplier = 2.0;
+                          return (bet * baseMultiplier).toFixed(0);
+                        })() + ' GC'}
+                      </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Your balance: </span>
@@ -834,19 +854,22 @@ export default function HiLo() {
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
                           <span>1-2 wins:</span>
-                          <span className="text-yellow-400">1.07x</span>
+                          <span className="text-yellow-400">1.07x (base)</span>
                         </div>
                         <div className="flex justify-between">
                           <span>3-5 wins:</span>
-                          <span className="text-yellow-400">1.28x</span>
+                          <span className="text-yellow-400">1.28x (base)</span>
                         </div>
                         <div className="flex justify-between">
                           <span>6-9 wins:</span>
-                          <span className="text-yellow-400">1.48x</span>
+                          <span className="text-yellow-400">1.48x (base)</span>
                         </div>
                         <div className="flex justify-between">
                           <span>10+ wins:</span>
-                          <span className="text-yellow-400">2.00x</span>
+                          <span className="text-yellow-400">2.00x (base)</span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-2 text-center">
+                          *7% house edge applied to actual payouts
                         </div>
                       </div>
                     </div>
