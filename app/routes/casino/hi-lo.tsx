@@ -885,11 +885,12 @@ export default function HiLo() {
             </div>
           </div>
         </div>
-
+        
         {/* Live Chat */}
         <ChatSidebar gamemode="hi-lo" />
       </div>
         </div>
+        </div>
     </GamemodeAccessCheck>
   );
-} 
+}
