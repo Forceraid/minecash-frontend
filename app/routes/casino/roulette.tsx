@@ -301,6 +301,9 @@ export default function Roulette() {
         {/* Live Chat */}
         <ChatSidebar gamemode="roulette" />
       </div>
+        </div>
+        </div>
+        </div>
     </GamemodeAccessCheck>
   );
 } 
