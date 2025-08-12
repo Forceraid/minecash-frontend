@@ -1054,7 +1054,7 @@ export default function Crash() {
       }, 100);
     } catch (error) {
       console.error('Error placing bet:', error);
-      addNotification('Failed to place bet', 'error');
+      addNotification('Failed to place DDt', 'error');
     }
   };
 
