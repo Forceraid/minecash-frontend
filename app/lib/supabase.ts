@@ -402,17 +402,66 @@ export const userStatsHelpers = {
     }
   },
 
+  // Get Hi-Lo statistics for a user
+  async getHiLoStats(userId: number) {
+    try {
+      // Get Hi-Lo bets for the user from game_bets table
+      const { data, error } = await (supabase as any)
+        .from('game_bets')
+        .select(`
+          id,
+          bet_amount,
+          payout_amount,
+          status,
+          created_at
+        `)
+        .eq('user_id', userId)
+        .eq('game_type', 'hi-lo')
+      
+      if (error) {
+        console.error('Error fetching Hi-Lo stats:', error)
+        return null
+      }
+
+      if (!data || data.length === 0) {
+        return null
+      }
+
+      const totalGames = data.length
+      const gamesWon = (data as any[]).filter((bet: any) => bet.status === 'won').length
+      const gamesLost = (data as any[]).filter((bet: any) => bet.status === 'lost').length
+      const gcWon = (data as any[])
+        .filter((bet: any) => bet.payout_amount && bet.payout_amount > 0)
+        .reduce((sum: number, bet: any) => sum + Number(bet.payout_amount), 0)
+      const gcLost = (data as any[])
+        .filter((bet: any) => bet.bet_amount)
+        .reduce((sum: number, bet: any) => sum + Number(bet.bet_amount), 0)
+
+      return {
+        totalGames,
+        gamesWon,
+        gamesLost,
+        gcWon,
+        gcLost
+      }
+    } catch (error) {
+      console.error('Error calculating Hi-Lo stats:', error)
+      return null
+    }
+  },
+
   // Get all user statistics for games with backend data
   async getUserStats(userId: number) {
     const crashStats = await userStatsHelpers.getCrashStats(userId)
+    const hiLoStats = await userStatsHelpers.getHiLoStats(userId)
     
     return {
       crash: crashStats,
+      'hi-lo': hiLoStats,
       // Other games will be null since they don't have backend data yet
       blackjack: null,
       roulette: null,
-      slots: null,
-      'hi-lo': null
+      slots: null
     }
   }
 }
