@@ -1381,5 +1381,6 @@ export default function Crash() {
           </div>
         </div>
       </div>
-    </GamemodeAccessCheck>
-  );
+          </GamemodeAccessCheck>
+    );
+  }
