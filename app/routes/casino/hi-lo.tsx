@@ -618,7 +618,7 @@ export default function HiLo() {
 
   return (
     <GamemodeAccessCheck gamemode="hi-lo">
-      <div className="min-h-screen bg-black relative">
+      <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-black relative">
         {/* Particles Background */}
         <div className="absolute inset-0 z-0">
           <Particles

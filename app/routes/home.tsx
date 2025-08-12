@@ -214,7 +214,7 @@ Hash: ${card.hash}`;
   }
 
   return (
-    <div className="min-h-screen bg-black pt-16 sm:pt-20 md:pt-24">
+    <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-black pt-16 sm:pt-20 md:pt-24">
       {/* Hero Section */}
       <section className="hero-section relative flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] px-4">
         {/* Logo */}

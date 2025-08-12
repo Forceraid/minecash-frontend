@@ -182,7 +182,7 @@ export default function Roulette() {
 
   return (
     <GamemodeAccessCheck gamemode="roulette">
-      <div className="min-h-screen bg-black relative">
+      <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-black relative">
         <div className="absolute inset-0 z-0">
           <Particles
             particleColors={["#C89E00", "#C89E00"]}
