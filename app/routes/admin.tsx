@@ -33,6 +33,19 @@ interface UserStats {
   games_played: number;
   biggest_win: number;
   biggest_loss: number;
+  game_stats?: {
+    [key: string]: {
+      total_bets: number;
+      total_won: number;
+      total_lost: number;
+      net_profit: number;
+      games_played: number;
+      biggest_win: number;
+      biggest_loss: number;
+      avg_bet: number;
+      win_rate: number;
+    };
+  };
 }
 
 interface GamemodeStats {
@@ -73,6 +86,7 @@ export default function Admin() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [expandedGamemodes, setExpandedGamemodes] = useState<Set<string>>(new Set());
   const [gcAdjustments, setGcAdjustments] = useState<{ [key: number]: number }>({});
   const [totalGCCirculation, setTotalGCCirculation] = useState(0);
   const [gcStats, setGcStats] = useState({
@@ -932,52 +946,96 @@ export default function Admin() {
     try {
       setLoadingStats(true);
       
-      // Get crash game stats
-      const { data: crashBets, error: crashError } = await supabase
-        .from('crash_bets')
-        .select('bet_amount, payout_amount, status')
-        .eq('user_id', userId);
+      // Get all game bets for the user from the game_bets table
+      const { data: gameBets, error: gameBetsError } = await supabase
+        .from('game_bets')
+        .select('game_type, bet_amount, payout_amount, status, cashout_value, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
 
-      if (crashError) {
-        console.error('Error fetching crash bets:', crashError);
+      if (gameBetsError) {
+        console.error('Error fetching game bets:', gameBetsError);
         return;
       }
 
-      // Calculate stats from crash bets
-      let totalBets = 0;
-      let totalWon = 0;
-      let totalLost = 0;
-      let biggestWin = 0;
-      let biggestLoss = 0;
-      let gamesPlayed = 0;
-
-      crashBets?.forEach(bet => {
-        const betAmount = parseFloat(bet.bet_amount || '0');
-        const payoutAmount = parseFloat(bet.payout_amount || '0');
-        
-        totalBets += betAmount;
-        
-        if (bet.status === 'cashed_out' && payoutAmount > 0) {
-          totalWon += payoutAmount;
-          biggestWin = Math.max(biggestWin, payoutAmount);
-        } else if (bet.status === 'crashed') {
-          totalLost += betAmount;
-          biggestLoss = Math.max(biggestLoss, betAmount);
-        }
-        
-        gamesPlayed++;
+      // Group bets by game type and calculate stats
+      const gameStats: { [key: string]: any } = {};
+      const allGames = ['crash', 'blackjack', 'roulette', 'slots', 'hi-lo'];
+      
+      // Initialize stats for each game type
+      allGames.forEach(gameType => {
+        gameStats[gameType] = {
+          total_bets: 0,
+          total_won: 0,
+          total_lost: 0,
+          net_profit: 0,
+          games_played: 0,
+          biggest_win: 0,
+          biggest_loss: 0,
+          avg_bet: 0,
+          win_rate: 0
+        };
       });
 
-      const netProfit = totalWon - totalLost;
+      // Calculate stats for each bet
+      gameBets?.forEach(bet => {
+        const gameType = bet.game_type;
+        if (!gameStats[gameType]) return;
+
+        const betAmount = parseFloat(bet.bet_amount || '0');
+        const payoutAmount = parseFloat(bet.payout_amount || '0');
+        const cashoutValue = parseFloat(bet.cashout_value || '0');
+        
+        gameStats[gameType].total_bets += betAmount;
+        gameStats[gameType].games_played++;
+        
+        // Determine if it's a win or loss based on game type and status
+        if (gameType === 'crash') {
+          if (bet.status === 'cashed_out' && cashoutValue > 0) {
+            const winAmount = (betAmount * cashoutValue) - betAmount;
+            gameStats[gameType].total_won += winAmount;
+            gameStats[gameType].biggest_win = Math.max(gameStats[gameType].biggest_win, winAmount);
+          } else if (bet.status === 'crashed') {
+            gameStats[gameType].total_lost += betAmount;
+            gameStats[gameType].biggest_loss = Math.max(gameStats[gameType].biggest_loss, betAmount);
+          }
+        } else {
+          // For other games, use payout_amount
+          if (payoutAmount > betAmount) {
+            const winAmount = payoutAmount - betAmount;
+            gameStats[gameType].total_won += winAmount;
+            gameStats[gameType].biggest_win = Math.max(gameStats[gameType].biggest_win, winAmount);
+          } else if (payoutAmount < betAmount) {
+            const lossAmount = betAmount - payoutAmount;
+            gameStats[gameType].total_lost += lossAmount;
+            gameStats[gameType].biggest_loss = Math.max(gameStats[gameType].biggest_loss, lossAmount);
+          }
+        }
+      });
+
+      // Calculate net profit, average bet, and win rate for each game type
+      allGames.forEach(gameType => {
+        const stats = gameStats[gameType];
+        stats.net_profit = stats.total_won - stats.total_lost;
+        stats.avg_bet = stats.games_played > 0 ? stats.total_bets / stats.games_played : 0;
+        stats.win_rate = stats.games_played > 0 ? 
+          ((stats.total_won > 0 ? 1 : 0) / stats.games_played) * 100 : 0;
+      });
+
+      // Calculate overall stats
+      const overallStats = {
+        total_bets: allGames.reduce((sum, game) => sum + gameStats[game].total_bets, 0),
+        total_won: allGames.reduce((sum, game) => sum + gameStats[game].total_won, 0),
+        total_lost: allGames.reduce((sum, game) => sum + gameStats[game].total_lost, 0),
+        net_profit: allGames.reduce((sum, game) => sum + gameStats[game].net_profit, 0),
+        games_played: allGames.reduce((sum, game) => sum + gameStats[game].games_played, 0),
+        biggest_win: Math.max(...allGames.map(game => gameStats[game].biggest_win)),
+        biggest_loss: Math.max(...allGames.map(game => gameStats[game].biggest_loss))
+      };
 
       setUserStats({
-        total_bets: totalBets,
-        total_won: totalWon,
-        total_lost: totalLost,
-        net_profit: netProfit,
-        games_played: gamesPlayed,
-        biggest_win: biggestWin,
-        biggest_loss: biggestLoss
+        ...overallStats,
+        game_stats: gameStats
       });
     } catch (error) {
       console.error('Error fetching user stats:', error);
@@ -1077,6 +1135,7 @@ export default function Admin() {
   const handleViewStats = async (user: User) => {
     setSelectedUser(user);
     setShowStatsModal(true);
+    setExpandedGamemodes(new Set()); // Clear expanded gamemodes for new user
     await fetchUserStats(user.id);
   };
 
@@ -2131,13 +2190,16 @@ export default function Admin() {
         {/* User Stats Modal */}
         {showStatsModal && selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-white">
                   Stats for {selectedUser.displayName || selectedUser.username || 'Unknown User'}
                 </h3>
                 <button
-                  onClick={() => setShowStatsModal(false)}
+                  onClick={() => {
+                    setShowStatsModal(false);
+                    setExpandedGamemodes(new Set());
+                  }}
                   className="text-gray-400 hover:text-white text-2xl"
                 >
                   ×
@@ -2151,45 +2213,145 @@ export default function Admin() {
                 </div>
               ) : userStats ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-2xl font-bold text-yellow-400">{userStats.games_played}</div>
-                      <div className="text-gray-400 text-sm">Games played</div>
+                  {/* Overall Stats */}
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-white mb-3 text-center">Overall Statistics</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-2xl font-bold text-yellow-400">{userStats.games_played}</div>
+                        <div className="text-gray-400 text-sm">Games played</div>
+                      </div>
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-2xl font-bold text-blue-400">{userStats.total_bets.toLocaleString()}</div>
+                        <div className="text-gray-400 text-sm">Total bet</div>
+                      </div>
                     </div>
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-2xl font-bold text-blue-400">{userStats.total_bets.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">Total bet</div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-2xl font-bold text-green-400">{userStats.total_won.toLocaleString()}</div>
+                        <div className="text-gray-400 text-sm">Total won</div>
+                      </div>
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-2xl font-bold text-red-400">{userStats.total_lost.toLocaleString()}</div>
+                        <div className="text-gray-400 text-sm">Total lost</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-700 rounded p-3 text-center mt-3">
+                      <div className={`text-2xl font-bold ${userStats.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {userStats.net_profit >= 0 ? '+' : ''}{userStats.net_profit.toLocaleString()}
+                      </div>
+                      <div className="text-gray-400 text-sm">Net profit/loss</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-lg font-bold text-green-400">{userStats.biggest_win.toLocaleString()}</div>
+                        <div className="text-gray-400 text-sm">Biggest win</div>
+                      </div>
+                      <div className="bg-gray-700 rounded p-3 text-center">
+                        <div className="text-lg font-bold text-red-400">{userStats.biggest_loss.toLocaleString()}</div>
+                        <div className="text-gray-400 text-sm">Biggest loss</div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-2xl font-bold text-green-400">{userStats.total_won.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">Total won</div>
+                  {/* Per-Gamemode Stats */}
+                  {userStats.game_stats && (
+                    <div className="space-y-3">
+                      <h4 className="text-lg font-bold text-white text-center">Gamemode Statistics</h4>
+                      
+                      {Object.entries(userStats.game_stats).map(([gamemode, stats]) => {
+                        if (stats.games_played === 0) return null; // Skip gamemodes with no games
+                        
+                        const isExpanded = expandedGamemodes.has(gamemode);
+                        const gamemodeIcon = {
+                          'crash': '🚀',
+                          'blackjack': '🃏',
+                          'roulette': '🎰',
+                          'slots': '🎰',
+                          'hi-lo': '📊'
+                        }[gamemode] || '🎮';
+                        
+                        return (
+                          <div key={gamemode} className="bg-gray-800 rounded-lg border border-gray-700">
+                            <button
+                              onClick={() => setExpandedGamemodes(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(gamemode)) {
+                                  newSet.delete(gamemode);
+                                } else {
+                                  newSet.add(gamemode);
+                                }
+                                return newSet;
+                              })}
+                              className="w-full p-3 flex items-center justify-between hover:bg-gray-700 transition-colors"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xl">{gamemodeIcon}</span>
+                                <span className="text-white font-semibold capitalize">{gamemode}</span>
+                                <span className="text-gray-400 text-sm">({stats.games_played} games)</span>
+                              </div>
+                              <span className="text-gray-400 text-lg">
+                                {isExpanded ? '▼' : '▶'}
+                              </span>
+                            </button>
+                            
+                            {isExpanded && (
+                              <div className="p-3 border-t border-gray-700 space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-blue-400">{stats.total_bets.toLocaleString()}</div>
+                                    <div className="text-gray-400 text-xs">Total bet</div>
+                                  </div>
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-green-400">{stats.total_won.toLocaleString()}</div>
+                                    <div className="text-gray-400 text-xs">Total won</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-red-400">{stats.total_lost.toLocaleString()}</div>
+                                    <div className="text-gray-400 text-xs">Total lost</div>
+                                  </div>
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className={`text-lg font-bold ${stats.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {stats.net_profit >= 0 ? '+' : ''}{stats.net_profit.toLocaleString()}
+                                    </div>
+                                    <div className="text-gray-400 text-xs">Net profit</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-yellow-400">{stats.avg_bet.toFixed(2)}</div>
+                                    <div className="text-gray-400 text-xs">Avg bet</div>
+                                  </div>
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-purple-400">{stats.win_rate.toFixed(1)}%</div>
+                                    <div className="text-gray-400 text-xs">Win rate</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-green-400">{stats.biggest_win.toLocaleString()}</div>
+                                    <div className="text-gray-400 text-xs">Biggest win</div>
+                                  </div>
+                                  <div className="bg-gray-700 rounded p-2 text-center">
+                                    <div className="text-lg font-bold text-red-400">{stats.biggest_loss.toLocaleString()}</div>
+                                    <div className="text-gray-400 text-xs">Biggest loss</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-2xl font-bold text-red-400">{userStats.total_lost.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">Total lost</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-800 rounded p-3 text-center">
-                    <div className={`text-2xl font-bold ${userStats.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {userStats.net_profit >= 0 ? '+' : ''}{userStats.net_profit.toLocaleString()}
-                    </div>
-                    <div className="text-gray-400 text-sm">Net profit/loss</div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-lg font-bold text-green-400">{userStats.biggest_win.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">Biggest win</div>
-                    </div>
-                    <div className="bg-gray-800 rounded p-3 text-center">
-                      <div className="text-lg font-bold text-red-400">{userStats.biggest_loss.toLocaleString()}</div>
-                      <div className="text-gray-400 text-sm">Biggest loss</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -2199,7 +2361,10 @@ export default function Admin() {
 
               <div className="mt-6 flex justify-end">
                 <button
-                  onClick={() => setShowStatsModal(false)}
+                  onClick={() => {
+                    setShowStatsModal(false);
+                    setExpandedGamemodes(new Set());
+                  }}
                   className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded font-semibold cursor-pointer"
                 >
                   Close
