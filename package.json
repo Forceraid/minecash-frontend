@@ -15,6 +15,7 @@
     "framer-motion": "^12.23.11",
     "isbot": "^5.1.27",
     "lucide-react": "^0.533.0",
+    "ogl": "^1.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router": "^7.7.0",
