@@ -101,9 +101,10 @@ export function useCrashGameState({
           clientSeed: state.clientSeed || null,
           nonce: Number(state.nonce ?? 0),
           phaseStartTime: state.phaseStartTime ? new Date(state.phaseStartTime).getTime() : Date.now(),
-          userBet: state.userBet || null
+          userBet: null // Don't include userBet from global messages
         };
 
+        // Always update global game state (phase, multiplier, etc.)
         if (normalized.currentRoundNumber !== lastRoundNumber) {
           setBetProcessed(false);
           setLastRoundNumber(normalized.currentRoundNumber);
@@ -113,43 +114,63 @@ export function useCrashGameState({
         setGameState(normalized.phase);
         setLastWebSocketUpdate(Date.now());
         
-        // Handle auto-cashout state update with notification
-        if (normalized.userBet && normalized.userBet.status === 'cashed_out') {
-          const currentRound = normalized.currentRoundNumber;
+        // Only process user-specific data if this message has gamemode field (user-specific)
+        if (message.gamemode === 'crash' && state.userBet) {
+          // This is a user-specific message with userBet data
+          const userBet = state.userBet;
           
-          // Only process payout and show notification once per round
-          if (currentRound !== lastAutoNotifyAtRef.current) {
-            // Calculate payout amount
-            const betAmount = normalized.userBet.amount || 0;
-            const cashoutMultiplier = normalized.userBet.cashoutValue || 1;
-            const payoutAmount = betAmount * cashoutMultiplier;
-
-            // Balance already updated immediately in handleAutoCashout
+          // Update crash state with user bet data
+          setCrashState((prev: any) => ({
+            ...prev,
+            userBet: userBet
+          }));
+          
+          // Handle auto-cashout state update with notification
+          if (userBet && userBet.status === 'cashed_out') {
+            const currentRound = normalized.currentRoundNumber;
             
-            // Show notification
-            addNotification(`Auto cashed out at ${normalized.userBet.cashoutValue}x`, 'success');
-            if (soundEnabledRef.current) {
-              soundSystem.play('cashout_success');
+            // Only process payout and show notification once per round
+            if (currentRound !== lastAutoNotifyAtRef.current) {
+              // Show notification
+              addNotification(`Auto cashed out at ${userBet.cashoutValue}x`, 'success');
+              if (soundEnabledRef.current) {
+                soundSystem.play('cashout_success');
+              }
+              
+              lastAutoNotifyAtRef.current = currentRound;
             }
-            
-            lastAutoNotifyAtRef.current = currentRound;
-          }
 
-          // Always reset bet state but keep auto cashout enabled
-          setCurrentBetAmount(0);
-          setBetProcessed(true);
+            // Always reset bet state but keep auto cashout enabled
+            setCurrentBetAmount(0);
+            setBetProcessed(true);
+          }
+          
+          const betAmountCandidate = userBet?.amount ?? 0;
+          const currentPhase = normalized.phase;
+          
+          if (userBet && userBet.autoCashout) {
+            setAutoCashoutActive(true);
+            setAutoCashout(parseFloat(userBet.autoCashout.targetValue || '1.5'));
+          } else if (userBet && userBet.autoCashout === false) {
+            setAutoCashoutActive(false);
+          }
+          
+          // Only update bet amount if we haven't processed a cashout
+          if (!betProcessed && userBet?.status !== 'cashed_out') {
+            if (betAmountCandidate && Number(betAmountCandidate) > 0 && currentPhase !== 'crashed' && currentPhase !== 'waiting') {
+              setCurrentBetAmount((prev: number) => {
+                const newAmount = Number(betAmountCandidate);
+                return prev !== newAmount ? newAmount : prev;
+              });
+            } else if (currentPhase === 'crashed' || currentPhase === 'waiting') {
+              setCurrentBetAmount(0);
+              setBetProcessed(true);
+            }
+          }
         }
         
-        const betAmountCandidate = state.userBet?.amount ?? 0;
+        // Handle global round completion for last rounds display
         const currentPhase = normalized.phase;
-        
-        if (state.userBet && state.userBet.autoCashout) {
-          setAutoCashoutActive(true);
-          setAutoCashout(parseFloat(state.userBet.autoCashout.targetValue || '1.5'));
-        } else if (state.userBet && state.userBet.autoCashout === false) {
-          setAutoCashoutActive(false);
-        }
-        
         if (currentPhase === 'crashed' && normalized.currentMultiplier > 1.0) {
           const multiplier = normalized.currentMultiplier;
           const roundNumber = normalized.currentRoundNumber;
@@ -164,19 +185,6 @@ export function useCrashGameState({
               ...prev.slice(0, 19)
             ];
           });
-        }
-        
-        // Only update bet amount if we haven't processed a cashout
-        if (!betProcessed && normalized.userBet?.status !== 'cashed_out') {
-          if (betAmountCandidate && Number(betAmountCandidate) > 0 && currentPhase !== 'crashed' && currentPhase !== 'waiting') {
-            setCurrentBetAmount((prev: number) => {
-              const newAmount = Number(betAmountCandidate);
-              return prev !== newAmount ? newAmount : prev;
-            });
-          } else if (currentPhase === 'crashed' || currentPhase === 'waiting') {
-            setCurrentBetAmount(0);
-            setBetProcessed(true);
-          }
         }
         break;
 

@@ -8,6 +8,7 @@ interface CrashBettingParams {
   handleBalanceUpdate: (newBalance: number) => Promise<void>;
   updateLocalBalance: (amount: number) => void;
   bet: number;
+  userProfile: any;
 }
 
 export function useCrashBetting({
@@ -17,7 +18,8 @@ export function useCrashBetting({
   soundEnabledRef,
   handleBalanceUpdate,
   updateLocalBalance,
-  bet
+  bet,
+  userProfile
 }: CrashBettingParams) {
 
   const handleBettingMessages = async (message: any) => {

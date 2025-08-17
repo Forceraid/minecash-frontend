@@ -45,7 +45,8 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
     soundEnabledRef: params.soundEnabledRef,
     handleBalanceUpdate: params.handleBalanceUpdate,
     updateLocalBalance: params.updateLocalBalance,
-    bet: params.bet
+    bet: params.bet,
+    userProfile: params.userProfile
   });
 
   const { handleCashoutMessages } = useCrashCashout({
@@ -114,13 +115,27 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
         return;
       }
 
-      // Route messages to appropriate handlers
-      await handleBettingMessages(message);
-      await handleCashoutMessages(message);
-      handleGameStateMessages(message);
-      handleRoundMessages(message);
+      // Check if this is a user-specific message (has gamemode field from sendToUser)
+      const isUserSpecific = message.gamemode === 'crash';
       
-      // Handle connection messages directly
+      // Route messages to appropriate handlers
+      // User-specific messages (bet confirmations, balance updates, personal notifications)
+      if (isUserSpecific) {
+        await handleBettingMessages(message);
+        await handleCashoutMessages(message);
+        handleGameStateMessages(message);
+      } else {
+        // Global messages (phase updates, multiplier changes, round completion)
+        // Only update global game state, not user-specific state
+        if (message.type === 'crash_state_update' || message.type === 'game_state_update') {
+          handleGameStateMessages(message);
+        }
+        if (message.type === 'crash_final_value' || message.type === 'round_complete') {
+          handleRoundMessages(message);
+        }
+      }
+      
+      // Handle connection messages directly (always process these)
       switch (message.type) {
         case 'joined_game':
           break;
