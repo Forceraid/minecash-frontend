@@ -1116,6 +1116,7 @@ export default function Crash() {
       
       if (newAutoCashoutActive) {
         websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
+        addNotification(`Auto cashout enabled at ${autoCashout}x`, 'success');
         // Refresh balance after setting auto-cashout
         refreshBalance();
       } else {
