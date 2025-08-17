@@ -116,7 +116,8 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
       }
 
       // Check if this is a user-specific message (has gamemode field from sendToUser)
-      const isUserSpecific = message.gamemode === 'crash';
+      // Also treat auto_cashout_triggered as user-specific since it's sent directly to the user
+      const isUserSpecific = message.gamemode === 'crash' || message.type === 'auto_cashout_triggered';
       
       // Route messages to appropriate handlers
       // User-specific messages (bet confirmations, balance updates, personal notifications)

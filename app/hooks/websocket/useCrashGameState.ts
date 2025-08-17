@@ -49,9 +49,8 @@ export function useCrashGameState({
           const specificMessage = message.message;
           
           if (specificMessage.type === 'auto_cashout_triggered') {
-            // Only handle state updates, no notifications
-            // Balance already updated immediately in handleAutoCashout
-            // Balance already refreshed immediately in handleAutoCashout
+            // Auto-cashout handled by dedicated handler in useCrashCashout
+            // Only handle state updates here
             setCurrentBetAmount(0);
             setBetProcessed(true);
             setAutoCashoutActive(false);
@@ -125,22 +124,9 @@ export function useCrashGameState({
             userBet: userBet
           }));
           
-          // Handle auto-cashout state update with notification
+          // Handle auto-cashout state update (no notification - handled by dedicated auto_cashout_triggered handler)
           if (userBet && userBet.status === 'cashed_out') {
-            const currentRound = normalized.currentRoundNumber;
-            
-            // Only process payout and show notification once per round
-            if (currentRound !== lastAutoNotifyAtRef.current) {
-              // Show notification
-              addNotification(`Auto cashed out at ${userBet.cashoutValue}x`, 'success');
-              if (soundEnabledRef.current) {
-                soundSystem.play('cashout_success');
-              }
-              
-              lastAutoNotifyAtRef.current = currentRound;
-            }
-
-            // Always reset bet state but keep auto cashout enabled
+            // Reset bet state but keep auto cashout enabled
             setCurrentBetAmount(0);
             setBetProcessed(true);
           }

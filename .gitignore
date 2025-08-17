@@ -8,3 +8,6 @@
 # Cursor IDE
 .cursor/
 
+# Backend repository (separate repo)
+Minecash-backend/
+
