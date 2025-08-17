@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CrashRocketScene } from "./CrashRocketScene";
+import CrashRocketScene from "./CrashRocketScene";
 
 // GameLiveView component with real-time integration
 function GameLiveView({ gameState, crashState, isConnected, lastRounds, interpolatedMultiplier }: { 
