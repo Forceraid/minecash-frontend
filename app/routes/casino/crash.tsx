@@ -330,8 +330,14 @@ export default function Crash() {
       return;
     }
 
-    if (bet < gameConfig.betLimits.min || bet > gameConfig.betLimits.max) {
-      addNotification(`Bet must be between ${gameConfig.betLimits.min} and ${gameConfig.betLimits.max} GC`, 'error');
+    // Double-check bet limits with explicit values
+    const minBet = gameConfig.betLimits.min || 1;
+    const maxBet = gameConfig.betLimits.max || 1000;
+    
+    console.log('Bet validation:', { bet, minBet, maxBet, gameConfig: gameConfig.betLimits });
+    
+    if (bet < minBet || bet > maxBet) {
+      addNotification(`Bet must be between ${minBet} and ${maxBet} GC`, 'error');
       return;
     }
 
