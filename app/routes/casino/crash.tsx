@@ -343,12 +343,9 @@ export default function Crash() {
       await refreshBalance();
       
       websocketService.placeBet(bet);
-      setBetProcessed(true);
-      addNotification('Bet placed successfully!', 'success');
       
-      // IMMEDIATE updates like Hi-Lo - no delays
-      setCurrentBetAmount(bet);
-      setBetProcessed(false);
+      // Don't set betProcessed here - wait for server confirmation
+      // The WebSocket handler will update the UI when bet is confirmed or failed
     } catch (error) {
       // Revert local balance if bet placement fails
       updateLocalBalance(bet);
