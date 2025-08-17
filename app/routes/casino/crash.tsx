@@ -13,6 +13,7 @@ import { websocketService } from "../../lib/websocket";
 import soundSystem from "../../lib/sound-system";
 import { useCrashNotifications } from "../../hooks/useCrashNotifications";
 import { useCrashSettings } from "../../hooks/useCrashSettings";
+import { useCrashWebSocket } from "../../hooks/useCrashWebSocket";
 
 export { meta } from "./+types/crash";
 
@@ -92,6 +93,35 @@ export default function Crash() {
 
   // Notification management
   const { notifications, addNotification, removeNotification } = useCrashNotifications(soundEnabled);
+
+  // WebSocket management
+  useCrashWebSocket({
+    user,
+    session,
+    loading,
+    userProfile,
+    bet,
+    refreshBalance,
+    isConnected,
+    setIsConnected,
+    setGameState,
+    crashState,
+    setCrashState,
+    setLastWebSocketUpdate,
+    betProcessed,
+    setBetProcessed,
+    lastRoundNumber,
+    setLastRoundNumber,
+    setCurrentBetAmount,
+    setLastRounds,
+    setAutoCashoutActive,
+    setAutoCashout,
+    addNotification,
+    soundEnabledRef,
+    lastAutoNotifyAtRef,
+    animationFrameId,
+    setGameConfig
+  });
 
 
 
@@ -238,515 +268,11 @@ export default function Crash() {
     }
   }, [crashState.phase, crashState.currentMultiplier, soundEnabled]);
 
-  // WebSocket connection and message handling
-  // Cleanup function for unmounting
-  useEffect(() => {
-    return () => {
-      // Clean up WebSocket
-      websocketService.leaveGame();
-      websocketService.disconnect();
-      websocketService.resetGamemodeTracking();
-      
-      // Clean up animations
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      
-      // Stop all sounds
-      soundSystem.stopAll();
-      
-      // Reset state
-      setIsConnected(false);
-      setGameState('waiting');
-      setCrashState(prev => ({
-        ...prev,
-        phase: 'betting',
-        currentMultiplier: 1.0
-      }));
-    };
-  }, []);
 
-  useEffect(() => {
-    if (user && session?.access_token && !loading) {
-      const wasAlreadyConnected = websocketService.isConnected();
-      
-      websocketService.connect({
-        onConnect: () => {
-          setIsConnected(true);
-          websocketService.joinGame('crash', session.access_token);
-        },
-        onDisconnect: () => {
-          setIsConnected(false);
-        },
-        onMessage: (message) => {
-          // Explicitly filter out ping/pong messages to prevent notifications
-          if (message.type === 'ping' || message.type === 'pong' || 
-              (message.type && message.type.toLowerCase().includes('pong'))) {
-            return;
-          }
 
-          switch (message.type) {
-            case 'joined_game':
-              break;
-            case 'join_game_error':
-              addNotification('Failed to join game room. Please refresh the page.', 'error');
-              break;
-            case 'bet_success':
-            case 'bet_confirmed':
-            case 'crash_bet_confirmed':
-              if (message.amount) {
-                setCurrentBetAmount(Number(message.amount));
-                setBetProcessed(false);
-              }
-              if (soundEnabledRef.current) {
-                soundSystem.play('bet_placed');
-              }
-              break;
-            case 'bet_failed':
-              addNotification(message.message || 'Bet failed', 'error');
-              if (soundEnabledRef.current) {
-                soundSystem.play('bet_failed');
-              }
-              if (message.betAmount) {
-                // updateLocalBalance(message.betAmount); // This line is no longer needed
-              }
-              break;
-            case 'cashout_success':
-              addNotification(`Success: cashed out at ${message.cashoutMultiplier || message.cashoutValue}x`, 'success');
-              if (soundEnabledRef.current) {
-                soundSystem.play('cashout_success');
-              }
-              if (message.cashoutAmount) {
-                // Balance already updated immediately in handleCashout
-              }
-              // Balance already refreshed immediately in handleCashout
-              setCurrentBetAmount(0);
-              setBetProcessed(true);
-              break;
-            case 'cashout_failed':
-              addNotification(message.message || 'Cashout failed', 'error');
-              if (soundEnabledRef.current) {
-                soundSystem.play('cashout_failed');
-              }
-              break;
-            case 'auto_cashout_success':
-              setAutoCashoutActive(true);
-              if (message.targetMultiplier || message.targetValue) {
-                setAutoCashout(parseFloat(message.targetMultiplier || message.targetValue));
-              }
-              break;
-            case 'auto_cashout_disabled':
-              addNotification(message.message || 'Auto cashout disabled', 'success');
-              setAutoCashoutActive(false);
-              break;
-            case 'auto_cashout_failed':
-              addNotification(message.message || 'Auto cashout failed', 'error');
-              setAutoCashoutActive(false);
-              break;
-            case 'auto_cashout_broadcast':
-              if (message.userData) {
-                if (userProfile && String(message.userData.id) === String(userProfile.id)) {
-                  // Only handle state updates, no notifications
-                  // Balance already updated immediately in handleAutoCashout
-                  // Balance already refreshed immediately in handleAutoCashout
-                  setCurrentBetAmount(0);
-                  setBetProcessed(true);
-                  setAutoCashoutActive(false);
-                }
-              }
-              break;
-            case 'user_specific_message':
-              if (userProfile && String(message.targetUserId) === String(userProfile.id)) {
-                const specificMessage = message.message;
-                
-                if (specificMessage.type === 'auto_cashout_triggered') {
-                  // Only handle state updates, no notifications
-                  // Balance already updated immediately in handleAutoCashout
-                  // Balance already refreshed immediately in handleAutoCashout
-                  setCurrentBetAmount(0);
-                  setBetProcessed(true);
-                  setAutoCashoutActive(false);
-                }
-                
-                else if (specificMessage.type === 'crash_state_update') {
-                  const state = specificMessage.state || specificMessage;
-                  const normalized = {
-                    phase: state.phase || 'betting',
-                    currentMultiplier: Number(state.currentMultiplier ?? 1.0),
-                    currentRoundNumber: Number(state.currentRoundNumber ?? 1),
-                    activePlayersCount: Number(state.activePlayersCount ?? 0),
-                    totalBetAmount: Number(state.totalBetAmount ?? 0),
-                    currentCrashPoint: Number(state.currentCrashPoint ?? 1.0),
-                    gameHash: state.gameHash || null,
-                    serverSeedHash: state.serverSeedHash || null,
-                    clientSeed: state.clientSeed || null,
-                    nonce: Number(state.nonce ?? 0),
-                    phaseStartTime: state.phaseStartTime ? new Date(state.phaseStartTime).getTime() : Date.now(),
-                    userBet: state.userBet || null
-                  };
-                  
-                  setCrashState(normalized);
-                  setGameState(normalized.phase);
-                  setLastWebSocketUpdate(Date.now());
-                  
-                  if (normalized.userBet && normalized.userBet.status === 'cashed_out' && !betProcessed) {
-                    setCurrentBetAmount(0);
-                    setBetProcessed(true);
-                    refreshBalance();
-                  }
-                }
-              }
-              break;
-            case 'crash_state_update':
-            case 'game_state_update':
-              const state = message.state || message;
-              const normalized = {
-                phase: state.phase || 'betting',
-                currentMultiplier: Number(state.currentMultiplier ?? 1.0),
-                currentRoundNumber: Number(state.currentRoundNumber ?? 1),
-                activePlayersCount: Number(state.activePlayersCount ?? 0),
-                totalBetAmount: Number(state.totalBetAmount ?? 0),
-                currentCrashPoint: Number(state.currentCrashPoint ?? 1.0),
-                gameHash: state.gameHash || null,
-                serverSeedHash: state.serverSeedHash || null,
-                clientSeed: state.clientSeed || null,
-                nonce: Number(state.nonce ?? 0),
-                phaseStartTime: state.phaseStartTime ? new Date(state.phaseStartTime).getTime() : Date.now(),
-                userBet: state.userBet || null
-              };
 
-              if (normalized.currentRoundNumber !== lastRoundNumber) {
-                setBetProcessed(false);
-                setLastRoundNumber(normalized.currentRoundNumber);
-              }
-              
-              setCrashState(normalized);
-              setGameState(normalized.phase);
-              setLastWebSocketUpdate(Date.now());
-              
-              // Handle auto-cashout state update with notification
-              if (normalized.userBet && normalized.userBet.status === 'cashed_out') {
-                const currentRound = normalized.currentRoundNumber;
-                
-                // Only process payout and show notification once per round
-                if (currentRound !== lastAutoNotifyAtRef.current) {
-                  // Calculate payout amount
-                  const betAmount = normalized.userBet.amount || 0;
-                  const cashoutMultiplier = normalized.userBet.cashoutValue || 1;
-                  const payoutAmount = betAmount * cashoutMultiplier;
 
-                  // Balance already updated immediately in handleAutoCashout
-                  
-                  // Show notification
-                  addNotification(`Auto cashed out at ${normalized.userBet.cashoutValue}x`, 'success');
-                  if (soundEnabledRef.current) {
-                    soundSystem.play('cashout_success');
-                  }
-                  
-                  lastAutoNotifyAtRef.current = currentRound;
-                }
 
-                // Always reset bet state but keep auto cashout enabled
-                setCurrentBetAmount(0);
-                setBetProcessed(true);
-              }
-              
-              const betAmountCandidate = state.userBet?.amount ?? 0;
-              const currentPhase = normalized.phase;
-              
-              if (state.userBet && state.userBet.autoCashout) {
-                setAutoCashoutActive(true);
-                setAutoCashout(parseFloat(state.userBet.autoCashout.targetValue || '1.5'));
-              } else if (state.userBet && state.userBet.autoCashout === false) {
-                setAutoCashoutActive(false);
-              }
-              
-              if (currentPhase === 'crashed' && normalized.currentMultiplier > 1.0) {
-                const multiplier = normalized.currentMultiplier;
-                const roundNumber = normalized.currentRoundNumber;
-                
-                setLastRounds(prev => {
-                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
-                  if (existingRound) {
-                    return prev;
-                  }
-                  return [
-                    { multiplier, roundNumber },
-                    ...prev.slice(0, 19)
-                  ];
-                });
-              }
-              
-              // Only update bet amount if we haven't processed a cashout
-              if (!betProcessed && normalized.userBet?.status !== 'cashed_out') {
-                if (betAmountCandidate && Number(betAmountCandidate) > 0 && currentPhase !== 'crashed' && currentPhase !== 'waiting') {
-                  setCurrentBetAmount(prev => {
-                    const newAmount = Number(betAmountCandidate);
-                    return prev !== newAmount ? newAmount : prev;
-                  });
-                } else if (currentPhase === 'crashed' || currentPhase === 'waiting') {
-                  setCurrentBetAmount(0);
-                  setBetProcessed(true);
-                }
-              }
-              break;
-            case 'round_complete':
-              if (message.roundNumber && message.crashPoint) {
-                setLastRounds(prev => [
-                  { multiplier: message.crashPoint, roundNumber: message.roundNumber },
-                  ...prev.slice(0, 19) // Keep only last 20 rounds
-                ]);
-              }
-              
-              // Balance already updated immediately in handleCashout/handleAutoCashout
-              break;
-            case 'crash_final_value':
-              const crashPoint = parseFloat(message.crashPoint);
-              setCrashState(prevState => ({
-                ...prevState,
-                currentMultiplier: crashPoint,
-                phase: 'crashed'
-              }));
-              
-              if (message.crashPoint && message.roundNumber) {
-                const multiplier = parseFloat(message.crashPoint);
-                const roundNumber = message.roundNumber;
-                
-                setLastRounds(prev => {
-                  const existingRound = prev.find(round => round.roundNumber === roundNumber);
-                  if (existingRound) {
-                    return prev;
-                  }
-                  // Add new round to beginning and keep most recent 20
-                  const newRounds = [
-                    { multiplier, roundNumber },
-                    ...prev
-                  ];
-                  return newRounds.slice(0, 20);
-                });
-              }
-              
-              if (currentBetAmount > 0 && !betProcessed) {
-                setCurrentBetAmount(0);
-                setBetProcessed(true);
-              }
-              setBetProcessed(true);
-              break;
-            case 'game_config_update':
-              if (message.config) {
-                setGameConfig(prev => ({
-                  ...prev,
-                  ...message.config
-                }));
-              }
-              break;
-            case 'error':
-              const errorMsg = message.message || '';
-              if (!errorMsg.toLowerCase().includes('pong') && !errorMsg.toLowerCase().includes('ping')) {
-                addNotification(message.message || 'An error occurred', 'error');
-              }
-              break;
-          }
-        },
-        onError: (error) => {
-          const errorMessage = error?.toString() || '';
-          if (!errorMessage.toLowerCase().includes('pong') && !errorMessage.toLowerCase().includes('ping')) {
-            setIsConnected(false);
-            addNotification('Connection lost. Attempting to reconnect...', 'warning');
-          }
-        }
-      });
-
-      if (wasAlreadyConnected) {
-        setIsConnected(true);
-        websocketService.joinGame('crash', session.access_token);
-      }
-
-      return () => {
-        websocketService.leaveGame();
-        soundSystem.stopAll();
-      };
-    }
-  }, [user, session?.access_token, loading]);
-
-  // Handle WebSocket messages
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const handleMessage = (message: any) => {
-      // Explicitly filter out ping/pong messages to prevent notifications
-      if (message.type === 'ping' || message.type === 'pong' || 
-          (message.type && message.type.toLowerCase().includes('pong'))) {
-        return;
-      }
-
-      switch (message.type) {
-        case 'game_state_update':
-          if (message.phase) {
-            setCrashState(prev => ({
-              ...prev,
-              phase: message.phase,
-              phaseStartTime: Date.now()
-            }));
-            
-            // Reset bet processed flag when entering betting phase
-            if (message.phase === 'betting') {
-              setBetProcessed(false);
-              setCurrentBetAmount(0);
-            }
-          }
-          
-          if (message.currentMultiplier !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              currentMultiplier: message.currentMultiplier
-            }));
-          }
-          
-          if (message.currentRoundNumber !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              currentRoundNumber: message.currentRoundNumber
-            }));
-            setLastRoundNumber(message.currentRoundNumber);
-          }
-          
-          if (message.activePlayersCount !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              activePlayersCount: message.activePlayersCount
-            }));
-          }
-          
-          if (message.totalBetAmount !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              totalBetAmount: message.totalBetAmount
-            }));
-          }
-          
-          if (message.currentCrashPoint !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              currentCrashPoint: message.currentCrashPoint
-            }));
-          }
-          
-          if (message.gameHash) {
-            setCrashState(prev => ({
-              ...prev,
-              gameHash: message.gameHash
-            }));
-          }
-          
-          if (message.serverSeedHash) {
-            setCrashState(prev => ({
-              ...prev,
-              serverSeedHash: message.serverSeedHash
-            }));
-          }
-          
-          if (message.clientSeed) {
-            setCrashState(prev => ({
-              ...prev,
-              clientSeed: message.clientSeed
-            }));
-          }
-          
-          if (message.nonce) {
-            setCrashState(prev => ({
-              ...prev,
-              nonce: message.nonce
-            }));
-          }
-          
-          // Only refresh balance if there's a bet amount change
-          if (message.betAmount !== undefined) {
-            // Balance already updated immediately in placeBet
-          }
-          break;
-          
-        case 'cashout_confirmed':
-          if (message.success) {
-            addNotification(`Cashout successful! Multiplier: ${message.multiplier}x`, 'success');
-            setCurrentBetAmount(0);
-            // Balance already updated immediately in handleCashout
-          } else {
-            addNotification(message.error || 'Failed to cashout', 'error');
-          }
-          break;
-          
-        case 'game_crashed':
-          if (message.crashPoint !== undefined) {
-            setCrashState(prev => ({
-              ...prev,
-              currentCrashPoint: message.crashPoint
-            }));
-          }
-          
-          // Add to last rounds
-          if (message.roundNumber && message.crashPoint) {
-            setLastRounds(prev => [
-              { multiplier: message.crashPoint, roundNumber: message.roundNumber },
-              ...prev.slice(0, 19) // Keep only last 20 rounds
-            ]);
-          }
-          
-          // Reset game state
-          setCurrentBetAmount(0);
-          setBetProcessed(false);
-          
-          // Balance already updated immediately in handleCashout/handleAutoCashout
-          break;
-          
-        case 'user_specific_update':
-          if (userProfile && String(message.userData.id) === String(userProfile.id)) {
-            // Handle user-specific updates
-            if (message.cashoutAmount) {
-              // Balance already updated immediately in handleCashout
-            }
-            setCurrentBetAmount(0);
-          }
-          break;
-          
-        case 'auto_cashout_triggered':
-          if (userProfile && String(message.userData.id) === String(userProfile.id)) {
-            // Handle auto-cashout updates
-            if (message.cashoutAmount) {
-              // Balance already updated immediately in handleAutoCashout
-            }
-            setCurrentBetAmount(0);
-          }
-          break;
-          
-        case 'round_complete':
-          if (message.roundNumber && message.crashPoint) {
-            setLastRounds(prev => [
-              { multiplier: message.crashPoint, roundNumber: message.roundNumber },
-              ...prev.slice(0, 19) // Keep only last 20 rounds
-            ]);
-          }
-          
-          // Balance already updated immediately in handleCashout/handleAutoCashout
-          break;
-          
-        case 'error':
-          addNotification(message.message || 'An error occurred', 'error');
-          break;
-          
-        default:
-          // Handle other message types if needed
-          break;
-      }
-    };
-
-    // Add message handler to WebSocket service
-    websocketService.addMessageHandler(handleMessage);
-
-    return () => {
-      websocketService.removeMessageHandler(handleMessage);
-    };
-  }, [isConnected, userProfile, bet, refreshBalance]);
 
   // Event handlers
 
