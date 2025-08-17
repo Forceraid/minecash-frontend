@@ -6,6 +6,8 @@ interface CrashBettingParams {
   addNotification: (message: string, type: 'error' | 'success' | 'warning') => void;
   soundEnabledRef: { current: boolean };
   handleBalanceUpdate: (newBalance: number) => Promise<void>;
+  updateLocalBalance: (amount: number) => void;
+  bet: number;
 }
 
 export function useCrashBetting({
@@ -13,7 +15,9 @@ export function useCrashBetting({
   setBetProcessed,
   addNotification,
   soundEnabledRef,
-  handleBalanceUpdate
+  handleBalanceUpdate,
+  updateLocalBalance,
+  bet
 }: CrashBettingParams) {
 
   const handleBettingMessages = async (message: any) => {
@@ -38,8 +42,14 @@ export function useCrashBetting({
         if (soundEnabledRef.current) {
           soundSystem.play('bet_failed');
         }
-        if (message.betAmount) {
-          // updateLocalBalance(message.betAmount); // This line is no longer needed
+        // Revert the optimistic UI updates when bet fails
+        updateLocalBalance(bet); // Add back the bet amount to local balance
+        setCurrentBetAmount(0);  // Reset current bet amount
+        setBetProcessed(false);  // Reset bet processed state
+        
+        // Update with server balance if provided
+        if (message.newBalance !== undefined) {
+          await handleBalanceUpdate(message.newBalance);
         }
         break;
     }

@@ -14,6 +14,7 @@ interface CrashWebSocketParams {
   bet: number;
   refreshBalance: () => void;
   handleBalanceUpdate: (newBalance: number) => Promise<void>;
+  updateLocalBalance: (amount: number) => void;
   isConnected: boolean;
   setIsConnected: (connected: boolean) => void;
   setGameState: (state: string) => void;
@@ -42,7 +43,9 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
     setBetProcessed: params.setBetProcessed,
     addNotification: params.addNotification,
     soundEnabledRef: params.soundEnabledRef,
-    handleBalanceUpdate: params.handleBalanceUpdate
+    handleBalanceUpdate: params.handleBalanceUpdate,
+    updateLocalBalance: params.updateLocalBalance,
+    bet: params.bet
   });
 
   const { handleCashoutMessages } = useCrashCashout({

@@ -139,6 +139,7 @@ export default function Crash() {
     bet,
     refreshBalance,
     handleBalanceUpdate,
+    updateLocalBalance,
     isConnected,
     setIsConnected,
     setGameState,
