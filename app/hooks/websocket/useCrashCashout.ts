@@ -9,6 +9,8 @@ interface CrashCashoutParams {
   addNotification: (message: string, type: 'error' | 'success' | 'warning') => void;
   soundEnabledRef: { current: boolean };
   refreshBalance: () => void;
+  handleBalanceUpdate: (newBalance: number) => Promise<void>;
+  crashState: any;
 }
 
 export function useCrashCashout({
@@ -19,20 +21,22 @@ export function useCrashCashout({
   setAutoCashout,
   addNotification,
   soundEnabledRef,
-  refreshBalance
+  refreshBalance,
+  handleBalanceUpdate,
+  crashState
 }: CrashCashoutParams) {
 
-  const handleCashoutMessages = (message: any) => {
+  const handleCashoutMessages = async (message: any) => {
     switch (message.type) {
       case 'cashout_success':
         addNotification(`Success: cashed out at ${message.cashoutMultiplier || message.cashoutValue}x`, 'success');
         if (soundEnabledRef.current) {
           soundSystem.play('cashout_success');
         }
-        if (message.cashoutAmount) {
-          // Balance already updated immediately in handleCashout
+        // Server confirms the cashout - sync balance if provided
+        if (message.newBalance !== undefined) {
+          await handleBalanceUpdate(message.newBalance);
         }
-        // Balance already refreshed immediately in handleCashout
         setCurrentBetAmount(0);
         setBetProcessed(true);
         break;
@@ -68,9 +72,7 @@ export function useCrashCashout({
       case 'auto_cashout_broadcast':
         if (message.userData) {
           if (userProfile && String(message.userData.id) === String(userProfile.id)) {
-            // Only handle state updates, no notifications
-            // Balance already updated immediately in handleAutoCashout
-            // Balance already refreshed immediately in handleAutoCashout
+            // Server confirms auto-cashout - balance was already updated immediately
             setCurrentBetAmount(0);
             setBetProcessed(true);
             setAutoCashoutActive(false);
@@ -79,9 +81,9 @@ export function useCrashCashout({
         break;
       case 'auto_cashout_triggered':
         if (userProfile && String(message.userData.id) === String(userProfile.id)) {
-          // Handle auto-cashout updates
-          if (message.cashoutAmount) {
-            // Balance already updated immediately in handleAutoCashout
+          // Server confirms auto-cashout trigger - update balance with authoritative value
+          if (message.newBalance !== undefined) {
+            await handleBalanceUpdate(message.newBalance);
           }
           setCurrentBetAmount(0);
         }

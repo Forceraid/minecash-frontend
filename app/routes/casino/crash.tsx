@@ -29,7 +29,43 @@ const getApiUrl = (endpoint: string) => {
 
 export default function Crash() {
   const { user, loading, session, userProfile } = useAuth();
-  const { balance, refreshBalance } = useGCBalance();
+  const { balance, refreshBalance, updateBalance } = useGCBalance();
+  
+  // Local balance state for immediate UI updates (like Hi-Lo)
+  const [localBalance, setLocalBalance] = useState(balance);
+  
+  // Sync local balance with server balance
+  useEffect(() => {
+    setLocalBalance(balance);
+  }, [balance]);
+  
+  // Additional effect to ensure global balance stays in sync
+  useEffect(() => {
+    if (localBalance !== balance) {
+      // If local balance differs from global, refresh global to sync
+      refreshBalance();
+    }
+  }, [localBalance, balance, refreshBalance]);
+  
+  // Update local balance immediately for UI responsiveness
+  const updateLocalBalance = (amount: number) => {
+    setLocalBalance(prev => {
+      const newBalance = Math.round((prev + amount) * 100) / 100;
+      return newBalance;
+    });
+  };
+  
+  // Handle balance updates from server - now also updates global context
+  const handleBalanceUpdate = async (newBalance: number) => {
+    if (!user || !session?.access_token) {
+      console.warn('Cannot update balance - user not authenticated');
+      return;
+    }
+    // Update local balance immediately
+    setLocalBalance(newBalance);
+    // Also refresh from server to ensure consistency
+    await refreshBalance();
+  };
   
   // Settings management
   const {
@@ -102,6 +138,7 @@ export default function Crash() {
     userProfile,
     bet,
     refreshBalance,
+    handleBalanceUpdate,
     isConnected,
     setIsConnected,
     setGameState,
@@ -276,7 +313,7 @@ export default function Crash() {
 
   // Event handlers
 
-  const placeBet = () => {
+  const placeBet = async () => {
     if (!isConnected) {
       addNotification('Not connected to game server', 'error');
       return;
@@ -297,7 +334,7 @@ export default function Crash() {
       return;
     }
 
-    if (bet > balance) {
+    if (bet > localBalance) {
       addNotification('Insufficient balance for this bet', 'error');
       return;
     }
@@ -308,6 +345,12 @@ export default function Crash() {
     }
 
     try {
+      // Update local balance immediately for UI responsiveness
+      updateLocalBalance(-bet);
+      
+      // Also update global balance context for header consistency
+      await refreshBalance();
+      
       websocketService.placeBet(bet);
       setBetProcessed(true);
       addNotification('Bet placed successfully!', 'success');
@@ -315,16 +358,17 @@ export default function Crash() {
       // IMMEDIATE updates like Hi-Lo - no delays
       setCurrentBetAmount(bet);
       setBetProcessed(false);
-      
-      // Refresh balance immediately after placing bet
-      refreshBalance();
     } catch (error) {
-      console.error('Error placing bet:', error);
+      // Revert local balance if bet placement fails
+      updateLocalBalance(bet);
+      // Also refresh global balance to ensure consistency
+      await refreshBalance();
       addNotification('Failed to place bet', 'error');
+      console.error('Error placing bet:', error);
     }
   };
 
-  const handleCashout = () => {
+  const handleCashout = async () => {
     if (!isConnected) {
       addNotification('Not connected to game server', 'error');
       return;
@@ -341,22 +385,23 @@ export default function Crash() {
     }
 
     try {
+      // Calculate and update local balance immediately for UI responsiveness
+      const estimatedPayout = currentBetAmount * crashState.currentMultiplier;
+      updateLocalBalance(estimatedPayout);
+      
       websocketService.sendGameAction('cashout');
       addNotification('Cashout requested!', 'success');
       
       // IMMEDIATE updates like Hi-Lo - no delays
       setCurrentBetAmount(0);
       setBetProcessed(true);
-      
-      // Refresh balance immediately after cashout
-      refreshBalance();
     } catch (error) {
       console.error('Error requesting cashout:', error);
       addNotification('Failed to request cashout', 'error');
     }
   };
 
-  const handleAutoCashout = () => {
+  const handleAutoCashout = async () => {
     if (!isConnected) {
       addNotification('Not connected to game server', 'error');
       return;
@@ -381,19 +426,17 @@ export default function Crash() {
       websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
       addNotification(`Auto-cashout set to ${autoCashout}x`, 'success');
       
-      // IMMEDIATE updates like Hi-Lo - no delays
+      // Note: Auto-cashout just sets target - actual cashout happens when multiplier reaches target
+      // Balance will be updated by backend when auto-cashout actually triggers
       setCurrentBetAmount(0);
       setBetProcessed(true);
-      
-      // Refresh balance immediately after auto-cashout
-      refreshBalance();
     } catch (error) {
       console.error('Error setting auto-cashout:', error);
       addNotification('Failed to set auto-cashout', 'error');
     }
   };
 
-  const handleGameAction = (action: string) => {
+  const handleGameAction = async (action: string) => {
     if (!isConnected) {
       addNotification('Not connected to server', 'error');
       return;
@@ -411,24 +454,23 @@ export default function Crash() {
       if (newAutoCashoutActive) {
         websocketService.sendGameAction('auto_cashout', { targetMultiplier: autoCashout });
         addNotification(`Auto cashout enabled at ${autoCashout}x`, 'success');
-        // Refresh balance after setting auto-cashout
-        refreshBalance();
       } else {
         websocketService.sendGameAction('auto_cashout', { targetMultiplier: 0 });
+        addNotification('Auto cashout disabled', 'success');
         if (typeof window !== 'undefined') {
           localStorage.setItem('crash_auto_cashout_active', 'false');
         }
-        // Refresh balance after disabling auto-cashout
-        refreshBalance();
       }
     } else if (action === 'cashout') {
       if (crashState.phase !== 'playing') {
         addNotification('Cashout is only available during the playing phase', 'error');
         return;
       }
+      // Calculate and update local balance immediately for manual cashout
+      const estimatedPayout = currentBetAmount * crashState.currentMultiplier;
+      updateLocalBalance(estimatedPayout);
+      
       websocketService.sendGameAction('cashout');
-      // Refresh balance after cashout action
-      refreshBalance();
     }
   };
 
@@ -468,17 +510,17 @@ export default function Crash() {
     <GamemodeAccessCheck gamemode="crash">
       {/* Particles Background - Full Viewport */}
       <div className="fixed inset-0 z-0">
-        <Particles
-          particleColors={['#C89E00', '#C89E00']}
-          particleCount={200}
-          particleSpread={10}
-          speed={0.1}
-          particleBaseSize={100}
-          moveParticlesOnHover={true}
-          alphaParticles={false}
-          disableRotation={false}
-        />
-      </div>
+          <Particles
+            particleColors={['#C89E00', '#C89E00']}
+            particleCount={200}
+            particleSpread={10}
+            speed={0.1}
+            particleBaseSize={100}
+            moveParticlesOnHover={true}
+            alphaParticles={false}
+            disableRotation={false}
+          />
+        </div>
       
       <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-transparent relative">
         
@@ -525,7 +567,7 @@ export default function Crash() {
 
                 {/* Game Status */}
                 <GameStatus
-                  balance={balance}
+                  balance={localBalance}
                   currentBetAmount={currentBetAmount}
                   crashPhase={crashState.phase}
                   currentMultiplier={crashState.currentMultiplier}
@@ -537,6 +579,6 @@ export default function Crash() {
           </div>
         </div>
       </div>
-    </GamemodeAccessCheck>
-  );
-}
+          </GamemodeAccessCheck>
+    );
+  }

@@ -5,16 +5,18 @@ interface CrashBettingParams {
   setBetProcessed: (processed: boolean) => void;
   addNotification: (message: string, type: 'error' | 'success' | 'warning') => void;
   soundEnabledRef: { current: boolean };
+  handleBalanceUpdate: (newBalance: number) => Promise<void>;
 }
 
 export function useCrashBetting({
   setCurrentBetAmount,
   setBetProcessed,
   addNotification,
-  soundEnabledRef
+  soundEnabledRef,
+  handleBalanceUpdate
 }: CrashBettingParams) {
 
-  const handleBettingMessages = (message: any) => {
+  const handleBettingMessages = async (message: any) => {
     switch (message.type) {
       case 'bet_success':
       case 'bet_confirmed':
@@ -22,6 +24,10 @@ export function useCrashBetting({
         if (message.amount) {
           setCurrentBetAmount(Number(message.amount));
           setBetProcessed(false);
+        }
+        // Update balance with authoritative server value
+        if (message.result?.newBalance !== undefined) {
+          await handleBalanceUpdate(message.result.newBalance);
         }
         if (soundEnabledRef.current) {
           soundSystem.play('bet_placed');

@@ -17,6 +17,7 @@ interface CrashGameStateParams {
   soundEnabledRef: { current: boolean };
   lastAutoNotifyAtRef: { current: number };
   refreshBalance: () => void;
+  handleBalanceUpdate: (newBalance: number) => Promise<void>;
   setGameConfig: (config: any) => void;
 }
 
@@ -37,6 +38,7 @@ export function useCrashGameState({
   soundEnabledRef,
   lastAutoNotifyAtRef,
   refreshBalance,
+  handleBalanceUpdate,
   setGameConfig
 }: CrashGameStateParams) {
 

@@ -13,6 +13,7 @@ interface CrashWebSocketParams {
   userProfile: any;
   bet: number;
   refreshBalance: () => void;
+  handleBalanceUpdate: (newBalance: number) => Promise<void>;
   isConnected: boolean;
   setIsConnected: (connected: boolean) => void;
   setGameState: (state: string) => void;
@@ -40,7 +41,8 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
     setCurrentBetAmount: params.setCurrentBetAmount,
     setBetProcessed: params.setBetProcessed,
     addNotification: params.addNotification,
-    soundEnabledRef: params.soundEnabledRef
+    soundEnabledRef: params.soundEnabledRef,
+    handleBalanceUpdate: params.handleBalanceUpdate
   });
 
   const { handleCashoutMessages } = useCrashCashout({
@@ -51,7 +53,9 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
     setAutoCashout: params.setAutoCashout,
     addNotification: params.addNotification,
     soundEnabledRef: params.soundEnabledRef,
-    refreshBalance: params.refreshBalance
+    refreshBalance: params.refreshBalance,
+    handleBalanceUpdate: params.handleBalanceUpdate,
+    crashState: params.crashState
   });
 
   const { handleGameStateMessages } = useCrashGameState({
@@ -71,6 +75,7 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
     soundEnabledRef: params.soundEnabledRef,
     lastAutoNotifyAtRef: params.lastAutoNotifyAtRef,
     refreshBalance: params.refreshBalance,
+    handleBalanceUpdate: params.handleBalanceUpdate,
     setGameConfig: params.setGameConfig
   });
 
@@ -99,7 +104,7 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
   useEffect(() => {
     if (!params.isConnected) return;
 
-    const handleMessage = (message: any) => {
+    const handleMessage = async (message: any) => {
       // Filter out ping/pong messages
       if (message.type === 'ping' || message.type === 'pong' || 
           (message.type && message.type.toLowerCase().includes('pong'))) {
@@ -107,8 +112,8 @@ export function useCrashWebSocket(params: CrashWebSocketParams) {
       }
 
       // Route messages to appropriate handlers
-      handleBettingMessages(message);
-      handleCashoutMessages(message);
+      await handleBettingMessages(message);
+      await handleCashoutMessages(message);
       handleGameStateMessages(message);
       handleRoundMessages(message);
       
