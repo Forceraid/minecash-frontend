@@ -27,22 +27,14 @@ export function useCrashBetting({
       case 'bet_success':
       case 'bet_confirmed':
       case 'crash_bet_confirmed':
-        // Show success notification
-        addNotification('Bet placed successfully!', 'success');
-        
         if (message.amount) {
           setCurrentBetAmount(Number(message.amount));
           setBetProcessed(false);
-          
-          // NOW update the local balance since server confirmed the bet
-          updateLocalBalance(-Number(message.amount));
         }
-        
         // Update balance with authoritative server value
         if (message.result?.newBalance !== undefined) {
           await handleBalanceUpdate(message.result.newBalance);
         }
-        
         if (soundEnabledRef.current) {
           soundSystem.play('bet_placed');
         }
