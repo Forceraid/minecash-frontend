@@ -206,21 +206,11 @@ export default function Crash() {
     fetchRecentRounds();
   }, [crashState?.currentRoundNumber, user, session?.access_token]);
 
-  // Balance management
-  const updateLocalBalance = (amount: number) => {
-    // This function is no longer needed as localBalance is removed
-    // The global balance context handles the actual balance state
-  };
 
-  const syncBalanceWithServer = () => {
-    // This function is no longer needed as localBalance is removed
-    // The global balance context handles the actual balance state
-  };
 
-  useEffect(() => {
-    // This effect is no longer needed as localBalance is removed
-    // The global balance context handles the actual balance state
-  }, [balance]);
+
+
+
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
