@@ -618,20 +618,21 @@ export default function HiLo() {
 
   return (
     <GamemodeAccessCheck gamemode="hi-lo">
-      <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-black relative">
-        {/* Particles Background */}
-        <div className="absolute inset-0 z-0">
-          <Particles
-            particleColors={['#C89E00', '#C89E00']}
-            particleCount={200}
-            particleSpread={10}
-            speed={0.1}
-            particleBaseSize={100}
-            moveParticlesOnHover={true}
-            alphaParticles={false}
-            disableRotation={false}
-          />
-        </div>
+      {/* Particles Background - Full Viewport */}
+      <div className="fixed inset-0 z-0">
+        <Particles
+          particleColors={['#C89E00', '#C89E00']}
+          particleCount={200}
+          particleSpread={10}
+          speed={0.1}
+          particleBaseSize={100}
+          moveParticlesOnHover={true}
+          alphaParticles={false}
+          disableRotation={false}
+        />
+      </div>
+      
+      <div className="min-h-[calc(100vh-4rem)] sm:min-h-[calc(100vh-5rem)] md:min-h-[calc(100vh-6rem)] bg-transparent relative">
         
         {/* Content Layer */}
         <div className="relative z-10">
