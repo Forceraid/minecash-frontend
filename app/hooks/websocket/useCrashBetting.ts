@@ -54,6 +54,24 @@ export function useCrashBetting({
           await handleBalanceUpdate(message.newBalance);
         }
         break;
+
+      case 'auto_cashout_success':
+        addNotification(`Auto-cashout set to ${message.targetMultiplier}x`, 'success');
+        if (soundEnabledRef.current) {
+          soundSystem.play('bet_placed');
+        }
+        break;
+
+      case 'auto_cashout_disabled':
+        addNotification('Auto-cashout disabled', 'info');
+        break;
+
+      case 'auto_cashout_failed':
+        addNotification(message.message || 'Failed to set auto-cashout', 'error');
+        if (soundEnabledRef.current) {
+          soundSystem.play('bet_failed');
+        }
+        break;
     }
   };
 
