@@ -53,7 +53,7 @@ export function useCrashGameState({
             // Only handle state updates here
             setCurrentBetAmount(0);
             setBetProcessed(true);
-            setAutoCashoutActive(false);
+            // Don't disable auto-cashout - let it persist for next round
           }
           
           else if (specificMessage.type === 'crash_state_update') {

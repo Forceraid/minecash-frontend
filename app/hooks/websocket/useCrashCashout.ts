@@ -75,14 +75,14 @@ export function useCrashCashout({
             // Server confirms auto-cashout - balance was already updated immediately
             setCurrentBetAmount(0);
             setBetProcessed(true);
-            setAutoCashoutActive(false);
+            // Don't disable auto-cashout - let it persist for next round
           }
         }
         break;
       case 'auto_cashout_triggered':
         // Auto-cashout notification sent directly to the user
         // Show success notification with cashout details
-        addNotification(`Auto cashed out at ${message.cashoutMultiplier}x! Won $${message.cashoutAmount}`, 'success');
+        addNotification(`Auto cashed out at ${message.cashoutMultiplier}x! Won ${message.cashoutAmount} GC`, 'success');
         if (soundEnabledRef.current) {
           soundSystem.play('cashout_success');
         }
@@ -92,10 +92,10 @@ export function useCrashCashout({
           await handleBalanceUpdate(message.newBalance);
         }
         
-        // Reset bet state
+        // Reset bet state but keep auto-cashout enabled for next round
         setCurrentBetAmount(0);
         setBetProcessed(true);
-        setAutoCashoutActive(false);
+        // Don't disable auto-cashout - let it persist for next round
         break;
       case 'user_specific_update':
         if (userProfile && String(message.userData.id) === String(userProfile.id)) {
