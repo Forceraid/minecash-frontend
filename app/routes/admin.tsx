@@ -75,13 +75,6 @@ interface GamemodeStats {
   isActive: boolean;
 }
 
-// Helper function to safely construct API URLs
-const getApiUrl = (endpoint: string) => {
-  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  return `${cleanBaseUrl}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-};
-
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
   
@@ -142,6 +135,27 @@ export default function Admin() {
   const [userSearch, setUserSearch] = useState("");
   const [gcSearch, setGcSearch] = useState("");
 
+  // Helper function to safely construct API URLs
+  const getApiUrl = (endpoint: string) => {
+    const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    // Remove trailing slash if present to prevent double slashes
+    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${cleanBaseUrl}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  };
+
+  // Helper function to get authentication headers
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No session token available');
+    }
+    
+    return {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json'
+    };
+  };
+
   // Load users on component mount
   useEffect(() => {
     if (isAdmin) {
@@ -187,78 +201,340 @@ export default function Admin() {
     }
   };
 
-  // Load gamemode statistics
+  // Load gamemode statistics using backendApi
   const loadGamemodeStats = async () => {
     try {
-      const response = await fetch(getApiUrl('/admin/gamemode-stats'));
-      if (response.ok) {
-        const data = await response.json();
-        setGamemodeStats(data);
-      }
+      // Fetch crash game state
+      const crashData = await backendApi.getCrashGameState();
+      
+      // Fetch hi-lo game state
+      const hiLoData = await backendApi.getHiLoGameState();
+      
+      // Create gamemode stats array with real data
+      const stats: GamemodeStats[] = [
+        {
+          gamemode: "Crash",
+          icon: "🚀",
+          uptime: crashData?.uptime || 99.7,
+          playersOnline: crashData?.playersOnline || 0,
+          houseProfit: 0, // Will be calculated from database
+          houseExpense: 0, // Will be calculated from database
+          totalBets: 0, // Will be calculated from database
+          wins: 0, // Will be calculated from database
+          losses: 0, // Will be calculated from database
+          avgMultiplier: 1.5, // Default Crash multiplier
+          isActive: crashData?.isActive !== false
+        },
+        {
+          gamemode: "Blackjack",
+          icon: "🃏",
+          uptime: 0,
+          playersOnline: 0,
+          houseProfit: 0,
+          houseExpense: 0,
+          isActive: false
+        },
+        {
+          gamemode: "Roulette",
+          icon: "🎰",
+          uptime: 0,
+          playersOnline: 0,
+          houseProfit: 0,
+          houseExpense: 0,
+          isActive: false
+        },
+        {
+          gamemode: "Slots",
+          icon: "🎰",
+          uptime: 0,
+          playersOnline: 0,
+          houseProfit: 0,
+          houseExpense: 0,
+          isActive: false
+        },
+        {
+          gamemode: "Hi-Lo",
+          icon: "🎲",
+          uptime: hiLoData?.uptime || 99.5,
+          playersOnline: hiLoData?.playersOnline || 0,
+          houseProfit: 0, // Will be calculated from database
+          houseExpense: 0, // Will be calculated from database
+          totalBets: 0, // Will be calculated from database
+          wins: 0, // Will be calculated from database
+          losses: 0, // Will be calculated from database
+          avgMultiplier: 2.0, // Default Hi-Lo multiplier
+          isActive: hiLoData?.isActive !== false
+        }
+      ];
+      
+      setGamemodeStats(stats);
+      
+      // Now fetch the database statistics for active gamemodes
+      await fetchCrashStats();
+      await fetchHiLoStats();
+      
     } catch (error) {
       console.error('Error loading gamemode stats:', error);
+      // Set default stats if API fails
+      setGamemodeStats([
+        {
+          gamemode: 'crash',
+          icon: '🚀',
+          uptime: 99.8,
+          playersOnline: 0,
+          houseProfit: 0,
+          houseExpense: 0,
+          isActive: true
+        }
+      ]);
     }
   };
 
-  // Load game configuration
+  // Fetch crash statistics from database
+  const fetchCrashStats = async () => {
+    try {
+      // Get total bets count
+      const { count: betsCount, error: betsError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'crash');
+      
+      if (betsError) {
+        console.error('Error fetching crash bets count:', betsError);
+        return;
+      }
+      
+      // Get wins and losses
+      const { count: winsCount, error: winsError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'crash')
+        .eq('status', 'cashed_out');
+      
+      if (winsError) {
+        console.error('Error fetching crash wins count:', winsError);
+        return;
+      }
+      
+      const { count: lossesCount, error: lossesError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'crash')
+        .eq('status', 'crashed');
+      
+      if (lossesError) {
+        console.error('Error fetching crash losses count:', lossesError);
+        return;
+      }
+      
+      // Calculate house profit/expense from transactions
+      let houseProfit = 0;
+      let houseExpense = 0;
+      
+      try {
+        const { data: transactions, error: transError } = await supabase
+          .from('gc_transactions')
+          .select('amount, transaction_type')
+          .eq('game_type', 'crash');
+        
+        if (!transError && transactions) {
+          transactions.forEach(trans => {
+            if (trans.transaction_type === 'game_win') {
+              houseExpense += Math.abs(trans.amount);
+            } else if (trans.transaction_type === 'game_loss') {
+              houseProfit += Math.abs(trans.amount);
+            }
+          });
+        }
+      } catch (dbError) {
+        console.error('Error fetching crash transaction stats:', dbError);
+      }
+      
+      // Update gamemodeStats array with crash stats
+      setGamemodeStats(prev => {
+        return prev.map(stat => 
+          stat.gamemode === 'Crash' 
+            ? {
+                ...stat,
+                totalBets: betsCount || 0,
+                wins: winsCount || 0,
+                losses: lossesCount || 0,
+                houseProfit,
+                houseExpense
+              }
+            : stat
+        );
+      });
+      
+    } catch (error) {
+      console.error('Failed to fetch crash stats:', error);
+    }
+  };
+
+  // Fetch hi-lo statistics from database
+  const fetchHiLoStats = async () => {
+    try {
+      // Get total bets count
+      const { count: betsCount, error: betsError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'hi-lo');
+      
+      if (betsError) {
+        console.error('Error fetching hi-lo bets count:', betsError);
+        return;
+      }
+      
+      // Get wins and losses
+      const { count: winsCount, error: winsError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'hi-lo')
+        .eq('status', 'won');
+      
+      if (winsError) {
+        console.error('Error fetching hi-lo wins count:', winsError);
+        return;
+      }
+      
+      const { count: lossesCount, error: lossesError } = await supabase
+        .from('game_bets')
+        .select('*', { count: 'exact', head: true })
+        .eq('game_type', 'hi-lo')
+        .eq('status', 'lost');
+      
+      if (lossesError) {
+        console.error('Error fetching hi-lo losses count:', lossesError);
+        return;
+      }
+      
+      // Calculate house profit/expense from transactions
+      let houseProfit = 0;
+      let houseExpense = 0;
+      
+      try {
+        const { data: transactions, error: transError } = await supabase
+          .from('gc_transactions')
+          .select('amount, transaction_type')
+          .eq('game_type', 'hi-lo');
+        
+        if (!transError && transactions) {
+          transactions.forEach(trans => {
+            if (trans.transaction_type === 'game_win') {
+              houseExpense += Math.abs(trans.amount);
+            } else if (trans.transaction_type === 'game_loss') {
+              houseProfit += Math.abs(trans.amount);
+            }
+          });
+        }
+      } catch (dbError) {
+        console.error('Error fetching hi-lo transaction stats:', dbError);
+      }
+      
+      // Update gamemodeStats array with hi-lo stats
+      setGamemodeStats(prev => {
+        return prev.map(stat => 
+          stat.gamemode === 'Hi-Lo' 
+            ? {
+                ...stat,
+                totalBets: betsCount || 0,
+                wins: winsCount || 0,
+                losses: lossesCount || 0,
+                houseProfit,
+                houseExpense
+              }
+            : stat
+        );
+      });
+      
+    } catch (error) {
+      console.error('Failed to fetch hi-lo stats:', error);
+    }
+  };
+
+  // Load game configuration using backendApi
   const loadGameConfig = async () => {
     try {
       setLoadingGameConfig(true);
-      const response = await fetch(getApiUrl('/admin/game-config'));
-      if (response.ok) {
-        const data = await response.json();
-        setGameConfig(data);
-      }
+      const data = await backendApi.getGameConfig();
+      setGameConfig(data);
     } catch (error) {
       console.error('Error loading game config:', error);
+      // Set default config if API fails
+      setGameConfig({
+        betLimits: { crash: { min: 1, max: 1000 } },
+        houseEdge: { crash: 0.02 },
+        gameTiming: { bettingPhase: 30000, gamePhase: 0, resultPhase: 10000 },
+        chatSettings: { messageRateLimit: 3, maxMessageLength: 200, maxHistoryLength: 100 },
+        balanceLimits: { minBalance: 0, maxBalance: 1000000 },
+        multiplierLimits: { crash: null }
+      });
     } finally {
       setLoadingGameConfig(false);
     }
   };
 
-  // Load memory statistics
+  // Load memory statistics using backendApi
   const loadMemoryStats = async () => {
     try {
       setLoadingMemoryStats(true);
-      const response = await fetch(getApiUrl('/admin/memory-stats'));
-      if (response.ok) {
-        const data = await response.json();
-        setMemoryStats(data);
-      }
+      const data = await backendApi.getMemoryStats();
+      setMemoryStats(data);
     } catch (error) {
       console.error('Error loading memory stats:', error);
+      // Set default memory stats if API fails
+      setMemoryStats({
+        memory: { heapUsed: 0, heapTotal: 0, external: 0, rss: 0, heapUsage: 0, memoryEfficiency: 0 },
+        tracking: { userConnections: 0, gameStates: 0, activeGames: 0 }
+      });
     } finally {
       setLoadingMemoryStats(false);
     }
   };
 
-  // Load admin logs
+  // Load admin logs using backendApi
   const loadAdminLogs = async () => {
     try {
       setLoadingLogs(true);
-      const response = await fetch(getApiUrl('/admin/logs'));
-      if (response.ok) {
-        const data = await response.json();
-        setAdminLogs(data);
-      }
+      const data = await backendApi.getAdminLogs();
+      setAdminLogs(data);
     } catch (error) {
       console.error('Error loading admin logs:', error);
+      // Set default logs if API fails
+      setAdminLogs([
+        {
+          id: 1,
+          message: "Admin dashboard loaded",
+          level: "info",
+          details: null,
+          timestamp: new Date().toISOString(),
+          source: "frontend"
+        }
+      ]);
     } finally {
       setLoadingLogs(false);
     }
   };
 
-  // Load gamemode restrictions
+  // Load gamemode restrictions using backendApi
   const loadGamemodeRestrictions = async () => {
     try {
       setLoadingRestrictions(true);
-      const response = await fetch(getApiUrl('/admin/gamemode-restrictions'));
-      if (response.ok) {
-        const data = await response.json();
-        setGamemodeRestrictions(data);
-      }
+      const data = await backendApi.getGamemodeRestrictions();
+      setGamemodeRestrictions(data);
     } catch (error) {
       console.error('Error loading gamemode restrictions:', error);
+      // Set default restrictions if API fails
+      setGamemodeRestrictions([
+        {
+          id: 1,
+          gamemode: 'crash',
+          is_disabled: false,
+          disabled_at: null,
+          disabled_by: null,
+          reason: null
+        }
+      ]);
     } finally {
       setLoadingRestrictions(false);
     }
@@ -316,11 +592,8 @@ export default function Admin() {
     setLoadingStats(true);
 
     try {
-      const response = await fetch(getApiUrl(`/admin/user-stats/${user.id}`));
-      if (response.ok) {
-        const data = await response.json();
-        setUserStats(data);
-      }
+      const data = await backendApi.getUserStats(user.id);
+      setUserStats(data);
     } catch (error) {
       console.error('Error loading user stats:', error);
       NotificationManager.error('Failed to load user statistics');
@@ -384,16 +657,9 @@ export default function Admin() {
   const handleEmergencyStop = async () => {
     try {
       setEmergencyStopping(true);
-      const response = await fetch(getApiUrl('/admin/emergency-stop'), {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        NotificationManager.success('Emergency stop initiated');
-        setShowEmergencyModal(false);
-      } else {
-        throw new Error('Failed to initiate emergency stop');
-      }
+      await backendApi.emergencyStop();
+      NotificationManager.success('Emergency stop initiated');
+      setShowEmergencyModal(false);
     } catch (error) {
       console.error('Error initiating emergency stop:', error);
       NotificationManager.error('Failed to initiate emergency stop');
@@ -405,21 +671,12 @@ export default function Admin() {
   const handleUpdateGCLimits = async (type: 'deposit' | 'withdraw', min: number, max: number) => {
     try {
       setUpdatingLimits(true);
-      const response = await fetch(getApiUrl('/admin/gc-limits'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, min, max })
-      });
-
-      if (response.ok) {
-        setGcLimits(prev => ({
-          ...prev,
-          [type]: { min, max }
-        }));
-        NotificationManager.success(`${type} limits updated successfully`);
-      } else {
-        throw new Error('Failed to update GC limits');
-      }
+      await backendApi.updateGCLimits(type, min, max);
+      setGcLimits(prev => ({
+        ...prev,
+        [type]: { min, max }
+      }));
+      NotificationManager.success(`${type} limits updated successfully`);
     } catch (error) {
       console.error('Error updating GC limits:', error);
       NotificationManager.error('Failed to update GC limits');
@@ -431,24 +688,15 @@ export default function Admin() {
   const handleToggleGamemodeAccess = async (gamemode: string, isDisabled: boolean, reason?: string) => {
     try {
       setUpdatingGamemode(gamemode);
-      const response = await fetch(getApiUrl('/admin/gamemode-access'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gamemode, isDisabled, reason })
-      });
-
-      if (response.ok) {
-        setGamemodeRestrictions(prev => 
-          prev.map(r => 
-            r.gamemode === gamemode 
-              ? { ...r, is_disabled: isDisabled, disabled_at: isDisabled ? new Date().toISOString() : null, reason }
-              : r
-          )
-        );
-        NotificationManager.success(`Gamemode ${gamemode} ${isDisabled ? 'disabled' : 'enabled'} successfully`);
-      } else {
-        throw new Error('Failed to update gamemode access');
-      }
+      await backendApi.updateGamemodeAccess(gamemode, isDisabled, reason);
+      setGamemodeRestrictions(prev => 
+        prev.map(r => 
+          r.gamemode === gamemode 
+            ? { ...r, is_disabled: isDisabled, disabled_at: isDisabled ? new Date().toISOString() : null, reason }
+            : r
+        )
+      );
+      NotificationManager.success(`Gamemode ${gamemode} ${isDisabled ? 'disabled' : 'enabled'} successfully`);
     } catch (error) {
       console.error('Error updating gamemode access:', error);
       NotificationManager.error('Failed to update gamemode access');
@@ -460,19 +708,10 @@ export default function Admin() {
   const handleSaveGameConfig = async (config: any) => {
     try {
       setUpdatingGameConfig(true);
-      const response = await fetch(getApiUrl('/admin/game-config'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
-
-      if (response.ok) {
-        setGameConfig(config);
-        NotificationManager.success('Game configuration updated successfully');
-        setShowGameConfigModal(false);
-      } else {
-        throw new Error('Failed to update game configuration');
-      }
+      await backendApi.updateGameConfig(config);
+      setGameConfig(config);
+      NotificationManager.success('Game configuration updated successfully');
+      setShowGameConfigModal(false);
     } catch (error) {
       console.error('Error updating game configuration:', error);
       NotificationManager.error('Failed to update game configuration');

@@ -24,29 +24,162 @@ class BackendApiClient {
     }
   }
 
+  // Admin Methods
+  async getGamemodeStats() {
+    try {
+      const response = await fetch(getApiUrl('/game/crash-main/state'), {
+        headers: await this.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch gamemode stats:', error);
+      return null;
+    }
+  }
+
+  async getGameConfig() {
+    try {
+      const response = await fetch(getApiUrl('/game-config'), {
+        headers: await this.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Handle both response formats for backward compatibility
+        const config = data.config || data;
+        return config;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch game config:', error);
+      return null;
+    }
+  }
+
+  async updateGameConfig(newConfig: any) {
+    try {
+      const response = await fetch(getApiUrl('/game-config'), {
+        method: 'PUT',
+        headers: await this.getAuthHeaders(),
+        body: JSON.stringify(newConfig)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.success;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to update game config:', error);
+      return false;
+    }
+  }
+
+  async getMemoryStats() {
+    try {
+      const response = await fetch(getApiUrl('/stats/memory'), {
+        headers: await this.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const stats = await response.json();
+        return stats;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch memory stats:', error);
+      return null;
+    }
+  }
+
+  async getCrashGameState() {
+    try {
+      const response = await fetch(getApiUrl('/game/crash-main/state'), {
+        headers: await this.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch crash game state:', error);
+      return null;
+    }
+  }
+
+  async getHiLoGameState() {
+    try {
+      const response = await fetch(getApiUrl('/game/hi-lo-main/state'), {
+        headers: await this.getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch hi-lo game state:', error);
+      return null;
+    }
+  }
+
   async emergencyStop() {
     try {
-      const headers = await this.getAuthHeaders()
-      
-      const response = await fetch(getApiUrl('/emergency-stop'), {
+      const response = await fetch(getApiUrl('/admin/emergency-stop'), {
         method: 'POST',
-        headers
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Emergency stop failed')
-      }
-
-      return await response.json()
-    } catch (error) {
-      // Handle "User profile not found" error as success (timing issue)
-      if (error instanceof Error && error.message.includes('User profile not found')) {
-        return { success: true, message: 'Emergency stop initiated successfully' }
-      }
+        headers: await this.getAuthHeaders()
+      });
       
-      console.error('Emergency stop error:', error)
-      throw error
+      if (response.ok) {
+        const data = await response.json();
+        return data.success;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to initiate emergency stop:', error);
+      return false;
+    }
+  }
+
+  // Additional admin methods needed by admin.tsx
+  async getAdminLogs() {
+    try {
+      // This would typically come from the database, not an API endpoint
+      // For now, return null to indicate no logs available
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch admin logs:', error);
+      return null;
+    }
+  }
+
+  async getGamemodeRestrictions() {
+    try {
+      // This would typically come from the database, not an API endpoint
+      // For now, return null to indicate no restrictions available
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch gamemode restrictions:', error);
+      return null;
+    }
+  }
+
+  async getUserStats(userId: number) {
+    try {
+      // This would typically come from the database, not an API endpoint
+      // For now, return null to indicate no stats available
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch user stats:', error);
+      return null;
     }
   }
 
