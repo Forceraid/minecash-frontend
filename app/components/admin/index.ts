@@ -1,6 +1,7 @@
 export { AdminTabs } from './AdminTabs';
 export { UserManagement } from './UserManagement';
 export { GCTracker } from './GCTracker';
+export { GCBalanceEditor } from './GCBalanceEditor';
 export { GamemodeStats } from './GamemodeStats';
 export { AdminLogs } from './AdminLogs';
 export { GameConfig } from './GameConfig';

@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface AdminLog {
   id: number;
   message: string;
@@ -83,10 +85,10 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({
             Refresh
           </button>
         </div>
-        <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto scrollbar-hide">
           {loadingLogs ? (
             <div className="text-gray-400 text-center py-4">Loading logs...</div>
-          ) : adminLogs.length > 0 ? (
+          ) : (adminLogs && adminLogs.length > 0) ? (
             adminLogs.map((log) => {
               const timestamp = new Date(log.timestamp).toLocaleString();
               const timeAgo = getTimeAgo(new Date(log.timestamp));

@@ -2,13 +2,15 @@ import type { Route } from "./+types/admin";
 import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router";
 import { useState, useEffect } from "react";
-import { supabase, gcBalanceHelpers, gamemodeAccessHelpers } from "../lib/supabase";
+import { supabase, gcBalanceHelpers, gamemodeAccessHelpers, gcLimitsHelpers } from "../lib/supabase";
+import { useUserStats } from "../lib/useUserStats";
 import { backendApi } from "../lib/backend-api";
 import { NotificationManager } from "../components/Notification";
 import {
   AdminTabs,
   UserManagement,
   GCTracker,
+  GCBalanceEditor,
   GamemodeStats,
   AdminLogs,
   GameConfig,
@@ -77,6 +79,7 @@ interface GamemodeStats {
 
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
+  const { fetchForUser } = useUserStats();
   
   // State management
   const [activeTab, setActiveTab] = useState("users");
@@ -135,6 +138,23 @@ export default function Admin() {
   const [userSearch, setUserSearch] = useState("");
   const [gcSearch, setGcSearch] = useState("");
 
+  // Notification states
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    message: string;
+    type: 'error' | 'success' | 'warning';
+  }>>([]);
+
+  // Notification functions
+  const addNotification = (message: string, type: 'error' | 'success' | 'warning') => {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    setNotifications(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
+
   // Helper function to safely construct API URLs
   const getApiUrl = (endpoint: string) => {
     const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -165,13 +185,120 @@ export default function Admin() {
       loadMemoryStats();
       loadAdminLogs();
       loadGamemodeRestrictions();
+      // Ensure GC limits are fetched on mount for admins
+      (async () => {
+        try {
+          const limits = await gcLimitsHelpers.getGCLimits();
+          setGcLimits(limits);
+        } catch (e) {
+          console.error('Error fetching GC limits on mount:', e);
+        }
+      })();
     }
   }, [isAdmin]);
+
+  // Refresh logs when switching to Logs tab
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      loadAdminLogs();
+    }
+  }, [activeTab]);
+
+  // Realtime subscription for backend logs (only when Logs tab is open)
+  useEffect(() => {
+    if (activeTab !== 'logs') return;
+    
+    const channel = supabase
+      .channel(`admin_logs_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'admin_logs' 
+        },
+        async (payload) => {
+          try {
+            const { data, error } = await supabase
+              .from('admin_logs')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(50);
+              
+            if (error) return;
+            
+            setAdminLogs(data || []);
+          } catch (e) {
+            // Silent error handling
+          }
+        }
+      )
+      .subscribe();
+
+    // Backup refresh every 15 seconds
+    const backupRefresh = setInterval(() => {
+      loadAdminLogs();
+    }, 15000);
+
+    return () => {
+      try { 
+        channel?.unsubscribe();
+        clearInterval(backupRefresh);
+      } catch (e) {
+        // Silent cleanup
+      }
+    };
+  }, [activeTab]);
+
+  // Hook-driven user stats fetcher
+  const fetchUserStats = async (userId: number) => {
+    const stats = await fetchForUser(userId);
+    setUserStats(stats);
+  };
+
+  // Helper: fetch total GC circulation from all users
+  const fetchTotalGCCirculation = async () => {
+    try {
+      const totalCirculation = users.reduce((sum, u) => sum + (u.gc_balance || 0), 0);
+      setGcStats((prev) => ({
+        ...prev,
+        totalCirculation,
+      }));
+    } catch (error) {
+      console.error('Error calculating total GC circulation:', error);
+    }
+  };
+
+  // Helper: derive latest known balance from transactions if no gc_balances row yet
+  const getUserBalanceFromTransactions = async (userId: number): Promise<number> => {
+    try {
+      const { count, error: countError } = await supabase
+        .from('gc_transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (countError || !count) return 0;
+
+      const { data, error } = await supabase
+        .from('gc_transactions')
+        .select('balance_after')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error || !data || data.length === 0) return 0;
+      return Number(data[0]?.balance_after ?? 0) || 0;
+    } catch (e) {
+      console.error('Error deriving balance from transactions:', e);
+      return 0;
+    }
+  };
 
   // Load users from database
   const loadUsers = async () => {
     try {
       setLoadingUsers(true);
+      
       const { data: usersData, error } = await supabase
         .from('users')
         .select('*')
@@ -179,23 +306,43 @@ export default function Admin() {
 
       if (error) throw error;
 
-      const usersWithDisplayNames = usersData?.map(user => ({
-        ...user,
-        displayName: user.username || user.email?.split('@')[0] || 'Unknown'
-      })) || [];
+      // Enrich users with actual GC balances
+      const usersWithBalances = await Promise.all(
+        (usersData || []).map(async (u) => {
+          try {
+            let balance = await gcBalanceHelpers.getUserBalance(u.id);
+            if (!balance) {
+              balance = await getUserBalanceFromTransactions(u.id);
+            }
+            return {
+              ...u,
+              gc_balance: balance,
+              displayName: u.username || u.email?.split('@')[0] || 'Unknown'
+            };
+          } catch (e) {
+            console.error('Error fetching balance for user', u.id, e);
+            return {
+              ...u,
+              gc_balance: 0,
+              displayName: u.username || u.email?.split('@')[0] || 'Unknown'
+            };
+          }
+        })
+      );
 
-      setUsers(usersWithDisplayNames);
-      
-      // Calculate GC stats
-      const totalCirculation = usersWithDisplayNames.reduce((sum, user) => sum + (user.gc_balance || 0), 0);
-      setGcStats({
+      setUsers(usersWithBalances);
+
+      // Calculate GC stats from real balances
+      const totalCirculation = usersWithBalances.reduce((sum, u) => sum + (u.gc_balance || 0), 0);
+      setGcStats((prev) => ({
+        ...prev,
         totalCirculation,
-        totalDeposits: totalCirculation * 1.2, // Placeholder
-        totalWithdrawals: totalCirculation * 0.2 // Placeholder
-      });
+      }));
+      
+
     } catch (error) {
       console.error('Error loading users:', error);
-      NotificationManager.error('Failed to load users');
+      addNotification('Failed to load users', 'error');
     } finally {
       setLoadingUsers(false);
     }
@@ -204,6 +351,7 @@ export default function Admin() {
   // Load gamemode statistics using backendApi
   const loadGamemodeStats = async () => {
     try {
+      
       // Fetch crash game state
       const crashData = await backendApi.getCrashGameState();
       
@@ -273,8 +421,11 @@ export default function Admin() {
       await fetchCrashStats();
       await fetchHiLoStats();
       
+
+      
     } catch (error) {
       console.error('Error loading gamemode stats:', error);
+      addNotification('Failed to load gamemode stats, using defaults', 'error');
       // Set default stats if API fails
       setGamemodeStats([
         {
@@ -456,10 +607,13 @@ export default function Admin() {
   const loadGameConfig = async () => {
     try {
       setLoadingGameConfig(true);
+      
       const data = await backendApi.getGameConfig();
       setGameConfig(data);
+
     } catch (error) {
       console.error('Error loading game config:', error);
+      addNotification('Failed to load game config, using defaults', 'error');
       // Set default config if API fails
       setGameConfig({
         betLimits: { crash: { min: 1, max: 1000 } },
@@ -478,10 +632,13 @@ export default function Admin() {
   const loadMemoryStats = async () => {
     try {
       setLoadingMemoryStats(true);
+      
       const data = await backendApi.getMemoryStats();
       setMemoryStats(data);
+
     } catch (error) {
       console.error('Error loading memory stats:', error);
+      addNotification('Failed to load memory stats, using defaults', 'error');
       // Set default memory stats if API fails
       setMemoryStats({
         memory: { heapUsed: 0, heapTotal: 0, external: 0, rss: 0, heapUsage: 0, memoryEfficiency: 0 },
@@ -496,10 +653,14 @@ export default function Admin() {
   const loadAdminLogs = async () => {
     try {
       setLoadingLogs(true);
+      
       const data = await backendApi.getAdminLogs();
-      setAdminLogs(data);
+      const logs = data || [];
+      setAdminLogs(logs);
+
     } catch (error) {
       console.error('Error loading admin logs:', error);
+      addNotification('Failed to load admin logs, using defaults', 'error');
       // Set default logs if API fails
       setAdminLogs([
         {
@@ -516,35 +677,56 @@ export default function Admin() {
     }
   };
 
-  // Load gamemode restrictions using backendApi
+  // Load gamemode restrictions directly from Supabase (old working path)
   const loadGamemodeRestrictions = async () => {
     try {
       setLoadingRestrictions(true);
-      const data = await backendApi.getGamemodeRestrictions();
-      setGamemodeRestrictions(data);
+      
+      const data = await gamemodeAccessHelpers.getGamemodeRestrictions();
+      // Fallback defaults if table is empty
+      if (!data || data.length === 0) {
+        setGamemodeRestrictions([
+          { id: 1, gamemode: 'crash',    is_disabled: false, disabled_at: null, disabled_by: null, reason: null },
+          { id: 2, gamemode: 'hi-lo',    is_disabled: false, disabled_at: null, disabled_by: null, reason: null },
+          { id: 3, gamemode: 'blackjack',is_disabled: false, disabled_at: null, disabled_by: null, reason: null },
+          { id: 4, gamemode: 'roulette', is_disabled: false, disabled_at: null, disabled_by: null, reason: null },
+          { id: 5, gamemode: 'slots',    is_disabled: false, disabled_at: null, disabled_by: null, reason: null },
+        ]);
+      } else {
+        setGamemodeRestrictions(data);
+      }
     } catch (error) {
       console.error('Error loading gamemode restrictions:', error);
-      // Set default restrictions if API fails
+      addNotification('Failed to load gamemode restrictions, using defaults', 'error');
       setGamemodeRestrictions([
-        {
-          id: 1,
-          gamemode: 'crash',
-          is_disabled: false,
-          disabled_at: null,
-          disabled_by: null,
-          reason: null
-        }
+        { id: 1, gamemode: 'crash', is_disabled: false, disabled_at: null, disabled_by: null, reason: null }
       ]);
     } finally {
       setLoadingRestrictions(false);
     }
   };
 
+  // Refresh restrictions when opening the modal and subscribe to changes
+  useEffect(() => {
+    if (!showDisableModal) return;
+    loadGamemodeRestrictions();
+    const channel: any = gamemodeAccessHelpers.subscribeToGamemodeRestrictions(async (rows: any[]) => {
+      if (Array.isArray(rows) && rows.length > 0) {
+        setGamemodeRestrictions(rows as any);
+      }
+    });
+    return () => {
+      try { (channel as any)?.unsubscribe?.(); } catch {}
+    };
+  }, [showDisableModal]);
+
   // User management handlers
   const handleToggleUserBan = async (userId: number) => {
     try {
       const user = users.find(u => u.id === userId);
       if (!user) return;
+
+
 
       const { error } = await supabase
         .from('users')
@@ -557,32 +739,42 @@ export default function Admin() {
         u.id === userId ? { ...u, banned: !u.banned } : u
       ));
 
-      NotificationManager.success(
-        `User ${user.banned ? 'unbanned' : 'banned'} successfully`
+      addNotification(
+        `User ${user.displayName} ${user.banned ? 'unbanned' : 'banned'} successfully`,
+        'success'
       );
     } catch (error) {
       console.error('Error toggling user ban:', error);
-      NotificationManager.error('Failed to update user status');
+      addNotification('Failed to update user status', 'error');
     }
   };
 
   const handleResetUserGC = async (userId: number) => {
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ gc_balance: 0 })
-        .eq('id', userId);
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+      const current = Number(user.gc_balance || 0);
+      const adjustment = -current;
+      
 
-      if (error) throw error;
+      
+      const newBalance = await gcBalanceHelpers.updateBalance(
+        userId,
+        adjustment,
+        adjustment < 0 ? 'refund' : 'bonus',
+        'admin',
+        'admin_reset',
+        `GC balance reset by admin (was ${current})`
+      );
 
       setUsers(users.map(u => 
-        u.id === userId ? { ...u, gc_balance: 0 } : u
+        u.id === userId ? { ...u, gc_balance: newBalance } : u
       ));
-
-      NotificationManager.success('User GC balance reset successfully');
+      addNotification(`GC balance reset successfully for ${user.displayName}`, 'success');
+      fetchTotalGCCirculation();
     } catch (error) {
       console.error('Error resetting user GC:', error);
-      NotificationManager.error('Failed to reset user GC');
+      addNotification('Failed to reset user GC balance', 'error');
     }
   };
 
@@ -590,13 +782,15 @@ export default function Admin() {
     setSelectedUser(user);
     setShowStatsModal(true);
     setLoadingStats(true);
+    
+
 
     try {
-      const data = await backendApi.getUserStats(user.id);
-      setUserStats(data);
+      await fetchUserStats(user.id);
+
     } catch (error) {
       console.error('Error loading user stats:', error);
-      NotificationManager.error('Failed to load user statistics');
+      addNotification('Failed to load user statistics', 'error');
     } finally {
       setLoadingStats(false);
     }
@@ -615,33 +809,35 @@ export default function Admin() {
       const user = users.find(u => u.id === userId);
       if (!user) return;
 
-      const newBalance = (user.gc_balance || 0) + adjustment;
-      if (newBalance < 0) {
-        NotificationManager.error('Cannot set negative balance');
-        return;
-      }
+      const numeric = Number(adjustment) || 0;
+      const transactionType = numeric < 0 ? 'refund' : 'bonus';
+      
 
-      const { error } = await supabase
-        .from('users')
-        .update({ gc_balance: newBalance })
-        .eq('id', userId);
-
-      if (error) throw error;
+      
+      const newBalance = await gcBalanceHelpers.updateBalance(
+        userId,
+        numeric,
+        transactionType,
+        'admin',
+        'admin_adjustment',
+        `GC balance adjusted by admin: ${numeric > 0 ? '+' : ''}${numeric}`
+      );
 
       setUsers(users.map(u => 
         u.id === userId ? { ...u, gc_balance: newBalance } : u
       ));
 
       setGcAdjustments(prev => {
-        const newAdjustments = { ...prev };
-        delete newAdjustments[userId];
-        return newAdjustments;
+        const next = { ...prev };
+        delete next[userId];
+        return next;
       });
 
-      NotificationManager.success(`GC balance adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}`);
+      addNotification(`GC balance adjusted by ${numeric > 0 ? '+' : ''}${numeric} for ${user.displayName}`, 'success');
+      fetchTotalGCCirculation();
     } catch (error) {
       console.error('Error adjusting user GC:', error);
-      NotificationManager.error('Failed to adjust user GC');
+      addNotification('Failed to adjust user GC balance', 'error');
     }
   };
 
@@ -657,12 +853,14 @@ export default function Admin() {
   const handleEmergencyStop = async () => {
     try {
       setEmergencyStopping(true);
+
+      
       await backendApi.emergencyStop();
-      NotificationManager.success('Emergency stop initiated');
+      addNotification('Emergency stop initiated successfully', 'success');
       setShowEmergencyModal(false);
     } catch (error) {
       console.error('Error initiating emergency stop:', error);
-      NotificationManager.error('Failed to initiate emergency stop');
+      addNotification('Failed to initiate emergency stop', 'error');
     } finally {
       setEmergencyStopping(false);
     }
@@ -671,15 +869,26 @@ export default function Admin() {
   const handleUpdateGCLimits = async (type: 'deposit' | 'withdraw', min: number, max: number) => {
     try {
       setUpdatingLimits(true);
-      await backendApi.updateGCLimits(type, min, max);
-      setGcLimits(prev => ({
-        ...prev,
-        [type]: { min, max }
-      }));
-      NotificationManager.success(`${type} limits updated successfully`);
+
+      
+      // Upsert directly via Supabase to avoid backend stubs and reflect instantly
+      const { error } = await supabase
+        .from('gc_limits')
+        .upsert({
+          limit_type: type,
+          min_amount: min,
+          max_amount: max,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'limit_type' });
+      if (error) throw error;
+
+      // Refresh from source of truth
+      const limits = await gcLimitsHelpers.getGCLimits();
+      setGcLimits(limits);
+      addNotification(`${type} limits updated successfully`, 'success');
     } catch (error) {
       console.error('Error updating GC limits:', error);
-      NotificationManager.error('Failed to update GC limits');
+      addNotification('Failed to update GC limits', 'error');
     } finally {
       setUpdatingLimits(false);
     }
@@ -688,7 +897,18 @@ export default function Admin() {
   const handleToggleGamemodeAccess = async (gamemode: string, isDisabled: boolean, reason?: string) => {
     try {
       setUpdatingGamemode(gamemode);
-      await backendApi.updateGamemodeAccess(gamemode, isDisabled, reason);
+
+      
+      // Write directly to Supabase to avoid stale backend responses
+      const { error } = await supabase
+        .from('gamemode_access_restrictions')
+        .update({
+          is_disabled: isDisabled,
+          reason: reason ?? null,
+          disabled_at: isDisabled ? new Date().toISOString() : null,
+        })
+        .eq('gamemode', gamemode);
+      if (error) throw error;
       setGamemodeRestrictions(prev => 
         prev.map(r => 
           r.gamemode === gamemode 
@@ -696,10 +916,10 @@ export default function Admin() {
             : r
         )
       );
-      NotificationManager.success(`Gamemode ${gamemode} ${isDisabled ? 'disabled' : 'enabled'} successfully`);
+      addNotification(`Gamemode ${gamemode} ${isDisabled ? 'disabled' : 'enabled'} successfully`, 'success');
     } catch (error) {
       console.error('Error updating gamemode access:', error);
-      NotificationManager.error('Failed to update gamemode access');
+      addNotification('Failed to update gamemode access', 'error');
     } finally {
       setUpdatingGamemode(null);
     }
@@ -708,13 +928,15 @@ export default function Admin() {
   const handleSaveGameConfig = async (config: any) => {
     try {
       setUpdatingGameConfig(true);
+
+      
       await backendApi.updateGameConfig(config);
       setGameConfig(config);
-      NotificationManager.success('Game configuration updated successfully');
+      addNotification('Game configuration updated successfully', 'success');
       setShowGameConfigModal(false);
     } catch (error) {
       console.error('Error updating game configuration:', error);
-      NotificationManager.error('Failed to update game configuration');
+      addNotification('Failed to update game configuration', 'error');
     } finally {
       setUpdatingGameConfig(false);
     }
@@ -753,10 +975,10 @@ export default function Admin() {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
+          <h1 className="text-2xl font-bold text-white mb-4">Access denied</h1>
           <p className="text-gray-400 mb-6">You don't have permission to access this page.</p>
           <Link to="/" className="text-yellow-400 hover:text-yellow-300">
-            Return to Home
+            Return to home
           </Link>
         </div>
       </div>
@@ -764,24 +986,7 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-              <p className="text-gray-400">Manage MINECASH platform</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-300">Welcome, {user?.email}</span>
-              <Link to="/" className="text-yellow-400 hover:text-yellow-300">
-                Back to Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-900 pt-16 sm:pt-20 md:pt-24">
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -803,16 +1008,20 @@ export default function Admin() {
           )}
 
           {activeTab === "gc" && (
-            <GCTracker
-              users={users}
-              gcSearch={gcSearch}
-              gcStats={gcStats}
-              gcAdjustments={gcAdjustments}
-              onGCSearchChange={setGcSearch}
-              onGCAdjustmentChange={handleGCAdjustmentChange}
-              onAdjustUserGC={handleAdjustUserGC}
-              onResetGCAdjustment={handleResetGCAdjustment}
-            />
+            <div className="space-y-8">
+              <GCTracker
+                gcStats={gcStats}
+              />
+              <GCBalanceEditor
+                users={users}
+                gcSearch={gcSearch}
+                gcAdjustments={gcAdjustments}
+                onGCSearchChange={setGcSearch}
+                onGCAdjustmentChange={handleGCAdjustmentChange}
+                onAdjustUserGC={handleAdjustUserGC}
+                onResetGCAdjustment={handleResetGCAdjustment}
+              />
+            </div>
           )}
 
           {activeTab === "stats" && (
@@ -897,6 +1106,12 @@ export default function Admin() {
         onClose={() => setShowGameConfigModal(false)}
         onSave={handleSaveGameConfig}
         onConfigChange={setGameConfig}
+      />
+
+      {/* Notification Manager */}
+      <NotificationManager
+        notifications={notifications}
+        onRemove={removeNotification}
       />
     </div>
   );

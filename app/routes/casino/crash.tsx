@@ -5,11 +5,11 @@ import { LightButton, GoldButton } from "../../components/Button";
 import { ChatSidebar } from "../../components/ChatSidebar";
 import { NotificationManager } from "../../components/Notification";
 import { GamemodeAccessCheck } from "../../components/GamemodeAccessCheck";
+import { BettingControls, GameActions, GameStatus, CrashRocketScene } from "../../components/crash";
 import Particles from "../../components/Particles";
 import { Link } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import { websocketService } from "../../lib/websocket";
-import CrashRocketScene from "../../components/CrashRocketScene";
 import soundSystem from "../../lib/sound-system";
 
 export { meta } from "./+types/crash";
@@ -1204,188 +1204,36 @@ export default function Crash() {
             <div className="bg-gray-900 rounded-lg p-4 sm:p-6 mb-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 xl:items-stretch">
                 {/* Betting Controls */}
-                <div className="h-full flex flex-col">
-                  <h3 className="text-white font-bold text-lg mb-4">Place your bet</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-white text-sm block mb-1">Bet amount:</label>
-                      <div className="flex items-center space-x-1 sm:space-x-2 w-full">
-                        <button 
-                          onClick={() => {
-                            updateBet(Math.max(1, bet - 1));
-                            handleButtonClick();
-                          }}
-                          className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
-                        >
-                          -1
-                        </button>
-                        <input
-                          type="number"
-                          value={betInput}
-                          onChange={(e) => handleBetInputChange(e.target.value)}
-                          className="bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base"
-                          min="1"
-                          placeholder="0"
-                        />
-                        <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">GC</span>
-                        <button 
-                          onClick={() => {
-                            updateBet(bet + 1);
-                            handleButtonClick();
-                          }}
-                          className="bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm"
-                        >
-                          +1
-                        </button>
-                      </div>
-                      
-                      {/* Quick Bet Buttons */}
-                      <div className="grid grid-cols-5 gap-1 mt-2">
-                        <button onClick={() => { updateBet(bet + 5); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+5</button>
-                        <button onClick={() => { updateBet(bet + 10); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+10</button>
-                        <button onClick={() => { updateBet(bet + 25); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+25</button>
-                        <button onClick={() => { updateBet(bet + 50); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+50</button>
-                        <button onClick={() => { updateBet(bet + 100); handleButtonClick(); }} className="bg-gray-700 hover:bg-gray-600 text-white px-1 sm:px-2 py-1 rounded text-xs cursor-pointer">+100</button>
-                      </div>
-                    </div>
-
-                    {/* Auto Cashout Settings */}
-                    <div>
-                      <label className="text-white text-sm block mb-1">Auto cashout at:</label>
-                      <div className="flex items-center space-x-1 sm:space-x-2 w-full">
-                        <button 
-                          onClick={() => {
-                            setAutoCashout(Math.max(1.1, autoCashout - 0.1));
-                            handleButtonClick();
-                          }}
-                          className={`bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm ${
-                            crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
-                        >
-                          -0.1
-                        </button>
-                        <input
-                          type="number"
-                          value={autoCashout}
-                          onChange={(e) => setAutoCashout(parseFloat(e.target.value) || 1.5)}
-                          className={`bg-gray-800 border border-gray-600 px-2 sm:px-4 py-2 rounded text-center flex-1 text-yellow-400 font-bold focus:outline-none focus:border-yellow-400 text-sm sm:text-base ${
-                            crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          min="1.1"
-                          step="0.1"
-                          placeholder="1.5"
-                          disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
-                        />
-                        <span className="text-gray-400 flex-shrink-0 text-sm sm:text-base">x</span>
-                        <button 
-                          onClick={() => {
-                            setAutoCashout(autoCashout + 0.1);
-                            handleButtonClick();
-                          }}
-                          className={`bg-gray-700 hover:bg-gray-600 text-white px-2 sm:px-3 py-2 rounded transition-colors cursor-pointer flex-shrink-0 text-sm ${
-                            crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={crashState.phase === 'playing' || crashState.phase === 'crashed'}
-                        >
-                          +0.1
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <BettingControls
+                  bet={bet}
+                  betInput={betInput}
+                  autoCashout={autoCashout}
+                  crashPhase={crashState.phase}
+                  onBetInputChange={handleBetInputChange}
+                  onUpdateBet={updateBet}
+                  onAutoCashoutChange={setAutoCashout}
+                  onButtonClick={handleButtonClick}
+                />
 
                 {/* Game Actions */}
-                <div className="h-full flex flex-col">
-                  <div className="mb-8">
-                    <h3 className="text-white font-bold text-lg">Actions</h3>
-                  </div>
-                  <div className="space-y-2">
-                    {/* Status Notifications */}
-                    {autoCashoutActive && (
-                      <div className="bg-green-600 text-white px-3 py-2 rounded text-sm font-semibold text-center">
-                        Auto cashout enabled at {autoCashout}x
-                      </div>
-                    )}
-                    
-                    {crashState.phase !== 'betting' && (
-                      <div className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold text-center">
-                        Betting is {crashState.phase === 'playing' ? 'closed - game in progress' : 'closed'}
-                      </div>
-                    )}
-                    
-                    <GoldButton 
-                      className="w-full" 
-                      onClick={() => {
-                        placeBet();
-                        handleButtonClick();
-                      }}
-                      disabled={!isConnected || crashState.phase !== 'betting'}
-                    >
-                      {crashState.phase === 'betting' ? 'Bet' : 'Betting closed'}
-                    </GoldButton>
-                    
-                    <button 
-                      className={`w-full px-4 py-2 rounded font-semibold transition-colors cursor-pointer relative ${
-                        autoCashoutActive 
-                          ? 'bg-red-600 hover:bg-red-700 text-white' 
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                      } ${autoCashoutActive ? 'opacity-50' : ''}`}
-                      onClick={() => {
-                        handleGameAction('cashout');
-                        handleButtonClick();
-                      }}
-                      disabled={!isConnected || autoCashoutActive}
-                    >
-                      Cash out
-                      {autoCashoutActive && (
-                        <div className="absolute inset-0 bg-black opacity-20" style={{
-                          backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.3) 4px, rgba(0,0,0,0.3) 8px)'
-                        }}></div>
-                      )}
-                    </button>
-                    
-                    <button 
-                      className={`w-full px-4 py-2 rounded font-semibold transition-colors cursor-pointer ${
-                        autoCashoutActive 
-                          ? 'bg-green-600 hover:bg-green-700 text-white' 
-                          : 'bg-red-600 hover:bg-red-700 text-white'
-                      } ${crashState.phase === 'playing' || crashState.phase === 'crashed' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      onClick={() => {
-                        handleGameAction('auto_cashout');
-                        handleButtonClick();
-                      }}
-                      disabled={!isConnected || crashState.phase === 'playing' || crashState.phase === 'crashed'}
-                    >
-                      Auto cashout
-                    </button>
-                  </div>
-                </div>
+                <GameActions
+                  isConnected={isConnected}
+                  crashPhase={crashState.phase}
+                  autoCashout={autoCashout}
+                  autoCashoutActive={autoCashoutActive}
+                  onPlaceBet={placeBet}
+                  onCashout={() => handleGameAction('cashout')}
+                  onToggleAutoCashout={() => handleGameAction('auto_cashout')}
+                  onButtonClick={handleButtonClick}
+                />
 
                 {/* Game Status */}
-                <div className="h-full flex flex-col">
-                  <div className="mb-8">
-                    <h3 className="text-white font-bold text-lg">Game status</h3>
-                  </div>
-                  <div className="bg-gray-800 rounded p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Your balance:</span>
-                      <span className="text-yellow-400 font-bold">{balance} GC</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Current bet:</span>
-                      <span className="text-white font-bold">{currentBetAmount} GC</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Status:</span>
-                      <span className="text-yellow-400 font-bold">{crashState.phase}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Multiplier:</span>
-                      <span className="text-white font-bold">{parseFloat(String(crashState.currentMultiplier)).toFixed(2)}x</span>
-                    </div>
-                  </div>
-                </div>
+                <GameStatus
+                  balance={balance}
+                  currentBetAmount={currentBetAmount}
+                  crashPhase={crashState.phase}
+                  currentMultiplier={crashState.currentMultiplier}
+                />
               </div>
             </div>
 

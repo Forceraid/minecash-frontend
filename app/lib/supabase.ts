@@ -78,10 +78,11 @@ export const gcBalanceHelpers = {
     gameId?: string,
     description?: string
   ): Promise<number> {
+    const numericAmount = Number(amount) || 0
     const { data, error } = await supabase
       .rpc('update_gc_balance', {
         p_user_id: userId,
-        p_amount: amount,
+        p_amount: numericAmount,
         p_transaction_type: transactionType,
         p_game_type: gameType,
         p_game_id: gameId,
@@ -92,8 +93,23 @@ export const gcBalanceHelpers = {
       console.error('Error updating balance:', error)
       throw new Error('Failed to update balance')
     }
-    
-    return data
+
+    // If RPC didn't return a numeric balance, fetch latest
+    const newBalance = Number(data)
+    if (Number.isFinite(newBalance)) {
+      return newBalance
+    }
+
+    try {
+      const { data: balRow } = await supabase
+        .from('gc_balances')
+        .select('balance')
+        .eq('user_id', userId)
+        .single()
+      return Number(balRow?.balance ?? 0) || 0
+    } catch {
+      return 0
+    }
   },
 
   // Get user's transaction history

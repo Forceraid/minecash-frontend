@@ -123,10 +123,10 @@ export const UserStatsModal: React.FC<UserStatsModalProps> = ({
             {userStats.game_stats && (
               <div className="space-y-3">
                 <h4 className="text-lg font-bold text-white text-center">Gamemode statistics</h4>
-                
-                {Object.entries(userStats.game_stats).map(([gamemode, stats]) => {
-                  if (stats.games_played === 0) return null; // Skip gamemodes with no games
+                {Object.entries(userStats.game_stats || {}).map(([gamemode, stats]) => {
+                  if (!stats || (stats as any).games_played === 0) return null;
                   
+                  const s: any = stats || {};
                   const isExpanded = expandedGamemodes.has(gamemode);
                   const gamemodeIcon = {
                     'crash': '🚀',
@@ -145,7 +145,7 @@ export const UserStatsModal: React.FC<UserStatsModalProps> = ({
                         <div className="flex items-center space-x-2">
                           <span className="text-xl">{gamemodeIcon}</span>
                           <span className="text-white font-semibold capitalize">{gamemode}</span>
-                          <span className="text-gray-400 text-sm">({stats.games_played} games)</span>
+                          <span className="text-gray-400 text-sm">({s.games_played ?? 0} games)</span>
                         </div>
                         <span className="text-gray-400 text-lg">
                           {isExpanded ? '▼' : '▶'}
@@ -156,23 +156,23 @@ export const UserStatsModal: React.FC<UserStatsModalProps> = ({
                         <div className="p-3 border-t border-gray-700 space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-blue-400">{stats.total_bets.toLocaleString()}</div>
+                              <div className="text-lg font-bold text-blue-400">{Number(s.total_bets ?? 0).toLocaleString()}</div>
                               <div className="text-gray-400 text-xs">Total bet</div>
                             </div>
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-green-400">{stats.total_won.toLocaleString()}</div>
+                              <div className="text-lg font-bold text-green-400">{Number(s.total_won ?? 0).toLocaleString()}</div>
                               <div className="text-gray-400 text-xs">Total won</div>
                             </div>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-red-400">{stats.total_lost.toLocaleString()}</div>
+                              <div className="text-lg font-bold text-red-400">{Number(s.total_lost ?? 0).toLocaleString()}</div>
                               <div className="text-gray-400 text-xs">Total lost</div>
                             </div>
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className={`text-lg font-bold ${stats.net_profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {stats.net_profit >= 0 ? '+' : ''}{stats.net_profit.toLocaleString()}
+                              <div className={`text-lg font-bold ${(s.net_profit ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(s.net_profit ?? 0) >= 0 ? '+' : ''}{Number(s.net_profit ?? 0).toLocaleString()}
                               </div>
                               <div className="text-gray-400 text-xs">Net profit</div>
                             </div>
@@ -180,22 +180,22 @@ export const UserStatsModal: React.FC<UserStatsModalProps> = ({
                           
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-yellow-400">{stats.avg_bet.toFixed(2)}</div>
+                              <div className="text-lg font-bold text-yellow-400">{Number(s.avg_bet ?? 0).toFixed(2)}</div>
                               <div className="text-gray-400 text-xs">Avg bet</div>
                             </div>
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-purple-400">{stats.win_rate.toFixed(1)}%</div>
+                              <div className="text-lg font-bold text-purple-400">{Number(s.win_rate ?? 0).toFixed(1)}%</div>
                               <div className="text-gray-400 text-xs">Win rate</div>
                             </div>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-green-400">{stats.biggest_win.toLocaleString()}</div>
+                              <div className="text-lg font-bold text-green-400">{Number(s.biggest_win ?? 0).toLocaleString()}</div>
                               <div className="text-gray-400 text-xs">Biggest win</div>
                             </div>
                             <div className="bg-gray-700 rounded p-2 text-center">
-                              <div className="text-lg font-bold text-red-400">{stats.biggest_loss.toLocaleString()}</div>
+                              <div className="text-lg font-bold text-red-400">{Number(s.biggest_loss ?? 0).toLocaleString()}</div>
                               <div className="text-gray-400 text-xs">Biggest loss</div>
                             </div>
                           </div>

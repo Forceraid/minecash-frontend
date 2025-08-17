@@ -9,7 +9,7 @@ interface GamemodeRestriction {
 
 interface DisableAccessModalProps {
   isOpen: boolean;
-  gamemodeRestrictions: GamemodeRestriction[];
+  gamemodeRestrictions: GamemodeRestriction[] | null;
   loadingRestrictions: boolean;
   updatingGamemode: string | null;
   onClose: () => void;
@@ -51,7 +51,7 @@ export const DisableAccessModal: React.FC<DisableAccessModalProps> = ({
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {gamemodeRestrictions.map((restriction) => (
+              {(gamemodeRestrictions ?? []).map((restriction) => (
                 <div key={restriction.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-lg font-semibold text-white capitalize">
