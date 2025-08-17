@@ -97,7 +97,7 @@ export const GameConfigModal: React.FC<GameConfigModalProps> = ({
                       className="w-full px-3 py-2 rounded bg-gray-600 text-white border border-gray-500"
                       min="0"
                       max="100"
-                      step="0.1"
+                      step="1"
                     />
                   </div>
                 </div>
