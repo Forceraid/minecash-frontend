@@ -330,33 +330,21 @@ export default function Crash() {
       return;
     }
 
-    // Double-check bet limits with explicit values
-    const minBet = gameConfig.betLimits.min || 1;
-    const maxBet = gameConfig.betLimits.max || 1000;
-    
-    console.log('Bet validation:', { bet, minBet, maxBet, gameConfig: gameConfig.betLimits });
-    
-    if (bet < minBet || bet > maxBet) {
-      addNotification(`Bet must be between ${minBet} and ${maxBet} GC`, 'error');
+    // Basic bet validation
+    if (bet < 1 || bet > 1000) {
+      addNotification('Bet must be between 1 and 1000 GC', 'error');
       return;
     }
 
     try {
-      // Update local balance immediately for UI responsiveness
-      updateLocalBalance(-bet);
-      
-      // Also update global balance context for header consistency
-      await refreshBalance();
-      
+      // Send bet to server first - NO optimistic updates
       websocketService.placeBet(bet);
       
-      // Don't set betProcessed here - wait for server confirmation
-      // The WebSocket handler will update the UI when bet is confirmed or failed
+      // Show pending state
+      setBetProcessed(true);
+      addNotification('Placing bet...', 'info');
+      
     } catch (error) {
-      // Revert local balance if bet placement fails
-      updateLocalBalance(bet);
-      // Also refresh global balance to ensure consistency
-      await refreshBalance();
       addNotification('Failed to place bet', 'error');
       console.error('Error placing bet:', error);
     }

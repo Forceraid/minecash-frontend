@@ -33,6 +33,9 @@ export function useCrashBetting({
         if (message.amount) {
           setCurrentBetAmount(Number(message.amount));
           setBetProcessed(false);
+          
+          // NOW update the local balance since server confirmed the bet
+          updateLocalBalance(-Number(message.amount));
         }
         
         // Update balance with authoritative server value
