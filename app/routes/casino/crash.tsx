@@ -335,6 +335,24 @@ export default function Crash() {
       return;
     }
 
+    // Check if user already has a bet for this round
+    if (currentBetAmount > 0) {
+      addNotification('You already have an active bet for this round', 'error');
+      return;
+    }
+
+    // Check if user has enough balance
+    if (bet > userProfile.gc_balance) {
+      addNotification(`Insufficient balance. You have ${userProfile.gc_balance} GC`, 'error');
+      return;
+    }
+
+    // Check if betting is currently open
+    if (crashState.phase !== 'betting') {
+      addNotification('Betting is not currently open', 'error');
+      return;
+    }
+
     try {
       // Update local balance immediately for UI responsiveness
       updateLocalBalance(-bet);
