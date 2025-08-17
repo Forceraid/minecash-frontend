@@ -377,38 +377,7 @@ export default function Crash() {
     }
   };
 
-  const handleCashout = async () => {
-    if (!isConnected) {
-      addNotification('Not connected to game server', 'error');
-      return;
-    }
 
-    if (currentBetAmount === 0) {
-      addNotification('No active bet to cashout', 'error');
-      return;
-    }
-
-    if (crashState.phase !== 'crashing') {
-      addNotification('Can only cashout during crashing phase', 'error');
-      return;
-    }
-
-    try {
-      // Calculate and update local balance immediately for UI responsiveness
-      const estimatedPayout = currentBetAmount * crashState.currentMultiplier;
-      updateLocalBalance(estimatedPayout);
-      
-      websocketService.sendGameAction('cashout');
-      addNotification('Cashout requested!', 'success');
-      
-      // IMMEDIATE updates like Hi-Lo - no delays
-      setCurrentBetAmount(0);
-      setBetProcessed(true);
-    } catch (error) {
-      console.error('Error requesting cashout:', error);
-      addNotification('Failed to request cashout', 'error');
-    }
-  };
 
   const handleAutoCashout = async () => {
     if (!isConnected) {
@@ -475,11 +444,22 @@ export default function Crash() {
         addNotification('Cashout is only available during the playing phase', 'error');
         return;
       }
+      
+      if (currentBetAmount === 0) {
+        addNotification('No active bet to cashout', 'error');
+        return;
+      }
+      
       // Calculate and update local balance immediately for manual cashout
       const estimatedPayout = currentBetAmount * crashState.currentMultiplier;
       updateLocalBalance(estimatedPayout);
       
       websocketService.sendGameAction('cashout');
+      addNotification('Cashout requested!', 'success');
+      
+      // Reset bet state
+      setCurrentBetAmount(0);
+      setBetProcessed(true);
     }
   };
 
