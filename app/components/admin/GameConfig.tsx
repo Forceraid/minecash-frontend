@@ -70,6 +70,16 @@ export const GameConfig: React.FC<GameConfigProps> = ({
                 <h4 className="text-lg font-semibold text-white mb-2 capitalize">{gamemode}</h4>
                 <div className="text-center">
                   <span className="text-2xl font-bold text-yellow-400">{(edge * 100).toFixed(1)}%</span>
+                  {edge > 0.20 && (
+                    <p className="text-xs text-yellow-400 mt-1">
+                      ⚠️ High house edge - frequent instant crashes
+                    </p>
+                  )}
+                  {edge > 0.15 && edge <= 0.20 && (
+                    <p className="text-xs text-orange-400 mt-1">
+                      ⚠️ Moderate house edge - some instant crashes
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

@@ -104,6 +104,14 @@ export default function Admin() {
     timestamp: string;
     source: string;
   }>>([]);
+  const [backendLogs, setBackendLogs] = useState<Array<{
+    id: string;
+    message: string;
+    level: string;
+    details: any;
+    timestamp: string;
+    source: string;
+  }>>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [emergencyStopping, setEmergencyStopping] = useState(false);
   const [gamemodeStats, setGamemodeStats] = useState<GamemodeStats[]>([]);
@@ -208,7 +216,8 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab !== 'logs') return;
     
-    const channel = supabase
+    // Subscribe to admin_logs table changes (admin actions)
+    const adminChannel = supabase
       .channel(`admin_logs_${Date.now()}`)
       .on(
         'postgres_changes',
@@ -235,6 +244,22 @@ export default function Admin() {
       )
       .subscribe();
 
+    // Subscribe to WebSocket backend logs
+    const backendChannel = supabase
+      .channel(`backend_logs_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'admin_logs' 
+        },
+        (payload) => {
+          // This will be handled by the WebSocket connection
+        }
+      )
+      .subscribe();
+
     // Backup refresh every 15 seconds
     const backupRefresh = setInterval(() => {
       loadAdminLogs();
@@ -242,8 +267,63 @@ export default function Admin() {
 
     return () => {
       try { 
-        channel?.unsubscribe();
+        adminChannel?.unsubscribe();
+        backendChannel?.unsubscribe();
         clearInterval(backupRefresh);
+      } catch (e) {
+        // Silent cleanup
+      }
+    };
+  }, [activeTab]);
+
+  // WebSocket connection for real-time backend logs
+  useEffect(() => {
+    if (activeTab !== 'logs') return;
+
+    // Connect to WebSocket for backend logs
+    const ws = new WebSocket(import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000');
+    
+    ws.onopen = () => {
+      // Join admin room to receive backend logs
+      ws.send(JSON.stringify({
+        type: 'join_room',
+        room: 'admin'
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'backend_log') {
+          // Add new backend log to the list
+          setBackendLogs(prev => {
+            const newLog = {
+              id: `backend_${Date.now()}_${Math.random()}`,
+              message: data.message,
+              level: data.level,
+              details: data.details,
+              timestamp: data.timestamp,
+              source: data.source
+            };
+            
+            // Keep only last 100 backend logs to prevent memory issues
+            const updatedLogs = [newLog, ...prev.slice(0, 99)];
+            return updatedLogs;
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      try {
+        ws.close();
       } catch (e) {
         // Silent cleanup
       }
@@ -726,8 +806,6 @@ export default function Admin() {
       const user = users.find(u => u.id === userId);
       if (!user) return;
 
-
-
       const { error } = await supabase
         .from('users')
         .update({ banned: !user.banned })
@@ -738,6 +816,13 @@ export default function Admin() {
       setUsers(users.map(u => 
         u.id === userId ? { ...u, banned: !u.banned } : u
       ));
+
+      // Log admin action to database
+      try {
+        await backendApi.logAdminAction(user.id, `User ${user.displayName} ${user.banned ? 'unbanned' : 'banned'}`);
+      } catch (logError) {
+        console.error('Failed to log admin action:', logError);
+      }
 
       addNotification(
         `User ${user.displayName} ${user.banned ? 'unbanned' : 'banned'} successfully`,
@@ -1047,6 +1132,7 @@ export default function Admin() {
           {activeTab === "logs" && (
             <AdminLogs
               adminLogs={adminLogs}
+              backendLogs={backendLogs}
               loadingLogs={loadingLogs}
               emergencyStopping={emergencyStopping}
               onRefreshLogs={loadAdminLogs}

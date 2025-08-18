@@ -9,8 +9,18 @@ interface AdminLog {
   source: string;
 }
 
+interface BackendLog {
+  id: string;
+  message: string;
+  level: string;
+  details: any;
+  timestamp: string;
+  source: string;
+}
+
 interface AdminLogsProps {
   adminLogs: AdminLog[];
+  backendLogs?: BackendLog[];
   loadingLogs: boolean;
   emergencyStopping: boolean;
   onRefreshLogs: () => void;
@@ -21,6 +31,7 @@ interface AdminLogsProps {
 
 export const AdminLogs: React.FC<AdminLogsProps> = ({
   adminLogs,
+  backendLogs,
   loadingLogs,
   emergencyStopping,
   onRefreshLogs,
@@ -77,7 +88,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({
       {/* Admin Logs */}
       <div className="bg-gray-800 rounded-lg p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-white">Backend logs</h3>
+          <h3 className="text-xl font-bold text-white">System logs & Admin actions</h3>
           <button 
             onClick={onRefreshLogs}
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm cursor-pointer"
@@ -88,40 +99,81 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({
         <div className="space-y-3 max-h-[600px] overflow-y-auto scrollbar-hide">
           {loadingLogs ? (
             <div className="text-gray-400 text-center py-4">Loading logs...</div>
-          ) : (adminLogs && adminLogs.length > 0) ? (
-            adminLogs.map((log) => {
-              const timestamp = new Date(log.timestamp).toLocaleString();
-              const timeAgo = getTimeAgo(new Date(log.timestamp));
-              
-              return (
-                <div key={log.id} className={`flex items-start space-x-4 p-3 rounded ${
-                  log.level === 'error' ? 'bg-red-900/30 border border-red-500/30' :
-                  log.level === 'warning' ? 'bg-yellow-900/30 border border-yellow-500/30' :
-                  log.level === 'success' ? 'bg-green-900/30 border border-green-500/30' :
-                  'bg-gray-700'
-                }`}>
-                  <div className="text-gray-400 text-sm w-32 flex-shrink-0">{timeAgo}</div>
-                  <div className="flex-1">
-                    <div className="text-white font-semibold">{log.message}</div>
-                    {log.details && (
-                      <div className="text-gray-300 text-sm mt-1">
-                        {typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}
-                      </div>
-                    )}
-                  </div>
-                  <div className={`text-sm flex-shrink-0 ${
-                    log.level === 'error' ? 'text-red-400' :
-                    log.level === 'warning' ? 'text-yellow-400' :
-                    log.level === 'success' ? 'text-green-400' :
-                    'text-blue-400'
-                  }`}>
-                    {log.level.toUpperCase()}
-                  </div>
-                </div>
-              );
-            })
           ) : (
-            <div className="text-gray-400 text-center py-4">No logs available</div>
+            <>
+              {/* Backend logs (real-time) */}
+              {backendLogs && backendLogs.map((log) => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const timeAgo = getTimeAgo(new Date(log.timestamp));
+                
+                return (
+                  <div key={log.id} className={`flex items-start space-x-4 p-3 rounded border-l-4 ${
+                    log.level === 'error' ? 'bg-red-900/20 border-red-500/50' :
+                    log.level === 'warning' ? 'bg-yellow-900/20 border-yellow-500/50' :
+                    log.level === 'success' ? 'bg-green-900/20 border-green-500/50' :
+                    'bg-gray-700/50 border-blue-500/50'
+                  }`}>
+                    <div className="text-gray-400 text-sm w-32 flex-shrink-0">{timeAgo}</div>
+                    <div className="flex-1">
+                      <div className="text-white font-semibold">{log.message}</div>
+                      {log.details && (
+                        <div className="text-gray-300 text-sm mt-1">
+                          {typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}
+                        </div>
+                      )}
+                      <div className="text-xs text-blue-400 mt-1">Backend System</div>
+                    </div>
+                    <div className={`text-sm flex-shrink-0 ${
+                      log.level === 'error' ? 'text-red-400' :
+                      log.level === 'warning' ? 'text-yellow-400' :
+                      log.level === 'success' ? 'text-green-400' :
+                      'text-blue-400'
+                    }`}>
+                      {log.level.toUpperCase()}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Admin action logs (from database) */}
+              {adminLogs && adminLogs.map((log) => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const timeAgo = getTimeAgo(new Date(log.timestamp));
+                
+                return (
+                  <div key={log.id} className={`flex items-start space-x-4 p-3 rounded border-l-4 ${
+                    log.level === 'error' ? 'bg-red-900/30 border-red-500' :
+                    log.level === 'warning' ? 'bg-yellow-900/30 border-yellow-500' :
+                    log.level === 'success' ? 'bg-green-900/30 border-green-500' :
+                    'bg-gray-700 border-purple-500'
+                  }`}>
+                    <div className="text-gray-400 text-sm w-32 flex-shrink-0">{timeAgo}</div>
+                    <div className="flex-1">
+                      <div className="text-white font-semibold">{log.message}</div>
+                      {log.details && (
+                        <div className="text-gray-300 text-sm mt-1">
+                          {typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}
+                        </div>
+                      )}
+                      <div className="text-xs text-purple-400 mt-1">Admin Action</div>
+                    </div>
+                    <div className={`text-sm flex-shrink-0 ${
+                      log.level === 'error' ? 'text-red-400' :
+                      log.level === 'warning' ? 'text-yellow-400' :
+                      log.level === 'success' ? 'text-green-400' :
+                      'text-purple-400'
+                    }`}>
+                      {log.level.toUpperCase()}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* No logs message */}
+              {(!backendLogs || backendLogs.length === 0) && (!adminLogs || adminLogs.length === 0) && (
+                <div className="text-gray-400 text-center py-4">No logs available</div>
+              )}
+            </>
           )}
         </div>
       </div>

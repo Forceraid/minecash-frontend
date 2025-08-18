@@ -91,14 +91,31 @@ export const GameConfigModal: React.FC<GameConfigModalProps> = ({
                       value={(edge * 100).toFixed(1)}
                       onChange={(e) => {
                         const newConfig = { ...gameConfig };
-                        newConfig.houseEdge[gamemode] = parseFloat(e.target.value) / 100;
+                        const inputValue = parseFloat(e.target.value);
+                        
+                        // SAFETY: Prevent extreme house edge values
+                        let safeValue = inputValue;
+                        if (inputValue > 25) {
+                          safeValue = 25; // Cap at 25%
+                          alert(`⚠️ House edge cannot exceed 25%. Value capped at 25%.`);
+                        }
+                        
+                        newConfig.houseEdge[gamemode] = safeValue / 100;
                         onConfigChange(newConfig);
                       }}
                       className="w-full px-3 py-2 rounded bg-gray-600 text-white border border-gray-500"
                       min="0"
-                      max="100"
-                      step="1"
+                      max="25"
+                      step="0.1"
                     />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Maximum allowed: 25%. Higher values break the game.
+                    </p>
+                    {edge > 0.20 && (
+                      <p className="text-xs text-yellow-400 mt-1">
+                        ⚠️ High house edge: {Math.round(edge * 100)}% will cause frequent instant crashes.
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
